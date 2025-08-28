@@ -1,0 +1,2485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master of Brands - Daily Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        #toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: #111827;
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: 8px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s;
+            font-size: 1rem;
+            min-width: 170px;
+            text-align: center;
+        }
+        #toast.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .report-table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: #e5e7eb;
+        }
+        .modal-backdrop {
+            background-color: rgba(0,0,0,0.5);
+        }
+        
+        .tab-active {
+             @apply border-blue-600 text-blue-600 bg-blue-50;
+        }
+
+        /* Inventory App Styles */
+        .qty-input { text-align: center; }
+        .confirmation-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .confirmation-table th, .confirmation-table td { border: 1px solid #4a5568; padding: 8px; font-size: 0.875rem; text-align: left; vertical-align: middle; }
+        .confirmation-table th { background-color: #4a5568; color: white; }
+        .dark .confirmation-table th { background-color: #1a202c; }
+        .dark .confirmation-table td { color: #e2e8f0; }
+        .qty-btn {
+            background-color: #e5e7eb; border: 1px solid #d1d5db; color: #374151;
+            width: 28px; height: 28px; transition: background-color 0.15s ease;
+            display: flex; align-items: center; justify-content: center; font-weight: bold;
+        }
+        .qty-btn:hover:not(:disabled) { background-color: #d1d5db; }
+        .qty-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .qty-btn:first-child { border-radius: 0.375rem 0 0 0.375rem; }
+        .qty-btn:last-child { border-radius: 0 0.375rem 0.375rem 0; }
+        .qty-display {
+             -moz-appearance: textfield; height: 28px; border: 1px solid #d1d5db;
+        }
+        .qty-display::-webkit-outer-spin-button, .qty-display::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .delete-staged-btn { background: none; border: none; cursor: pointer; color: #ef4444; }
+        .delete-staged-btn:hover { color: #b91c1c; }
+
+        /* Inventory Modal Specific Styles */
+        #inventory-modal .modal-content {
+            max-width: 95%; 
+            width: auto; /* Changed from 600px to auto for responsiveness */
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            background-color: #ffffff; /* Explicitly set background to white */
+            z-index: 1001; /* Ensure it's above the backdrop */
+        }
+        #inventory-modal .modal-body {
+            overflow-y: auto;
+            -ms-overflow-style: none; /* IE and Edge */
+            scrollbar-width: none; /* Firefox */
+            flex-grow: 1; /* Allows the body to take available space and scroll */
+        }
+        #inventory-modal .modal-body::-webkit-scrollbar {
+            display: none; /* Chrome, Safari, Opera */
+        }
+        /* Added for responsive table cells in modals */
+        .confirmation-table td {
+            word-wrap: break-word;
+            white-space: normal;
+        }
+
+        /* Creditors Report Styles */
+        #creditors-table th, #creditors-table td {
+            border: 1px solid #e5e7eb; /* Light gray border */
+            padding: 12px;
+            font-size: 0.9rem;
+        }
+        #creditors-table thead th {
+            background-color: #f9fafb; /* Light background for header */
+            color: #4b5563; /* Darker text for header */
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        #creditors-table tbody tr:nth-child(odd) {
+            background-color: #ffffff;
+        }
+        #creditors-table tbody tr:nth-child(even) {
+            background-color: #f3f4f6;
+        }
+        #creditors-table tbody tr:hover {
+            background-color: #e5e7eb;
+            transition: background-color 0.2s ease-in-out;
+        }
+        #creditors-table tfoot td {
+            background-color: #e5e7eb;
+            font-weight: 700;
+            color: #1f2937;
+        }
+        #creditors-table .delete-creditor-btn {
+            background-color: #ef4444; /* Red */
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            transition: background-color 0.2s ease-in-out;
+        }
+        #creditors-table .delete-creditor-btn:hover {
+            background-color: #dc2626; /* Darker red */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+    <div class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+        <!-- Header with gradient background -->
+        <div class="rounded-lg border bg-card text-card-foreground shadow-sm mb-6 bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0">
+            <div class="p-6">
+                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                    <!-- Left side - Branding -->
+                    <div class="flex-1">
+                        <h1 class="text-3xl lg:text-4xl font-bold tracking-tight">
+                            MASTER OF BRANDS
+                        </h1>
+                        <p class="text-blue-100 text-lg mt-1">
+                            Daily Sale & Expense Tracker
+                        </p>
+                    </div>
+                    <!-- Right side - Controls -->
+                    <div class="flex flex-col sm:flex-row gap-4 lg:items-center">
+                        <!-- Date picker -->
+                        <div class="flex flex-col">
+                            <label class="text-sm font-medium text-blue-100 mb-1">Report Date</label>
+                            <div class="relative">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-300 h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" />
+                                </svg>
+                                <input type="date" id="report-date-input" class="pl-10 bg-white/10 border-white/20 text-white placeholder:text-blue-200 flex h-10 w-full rounded-md border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+                            </div>
+                        </div>
+                        <!-- Opening Balance -->
+                        <div class="flex flex-col">
+                            <label class="text-sm font-medium text-blue-100 mb-1">Opening Balance</label>
+                            <input type="number" step="0.01" placeholder="0.00" id="opening-balance" class="bg-white/10 border-white/20 text-white placeholder:text-blue-200 flex h-10 w-full rounded-md border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 6-column grid for analytics cards -->
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+            <!-- Opening Balance Card -->
+            <div class="rounded-lg border bg-white text-card-foreground shadow-sm hover:shadow-lg transition-shadow">
+                <div class="p-4">
+                    <div class="flex items-center gap-2 mb-2">
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                        <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Opening</p>
+                    </div>
+                    <p id="total-opening" class="text-xl font-bold text-slate-800">₹0.00</p>
+                </div>
+            </div>
+            <!-- Cash Sales Card -->
+            <div class="rounded-lg border bg-white text-card-foreground shadow-sm hover:shadow-lg transition-shadow">
+                <div class="p-4">
+                    <div class="flex items-center gap-2 mb-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                        <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Cash Sales</p>
+                    </div>
+                    <p id="total-cash" class="text-xl font-bold text-green-600">₹0.00</p>
+                </div>
+            </div>
+            <!-- Online Sales Card -->
+            <div class="rounded-lg border bg-white text-card-foreground shadow-sm hover:shadow-lg transition-shadow">
+                <div class="p-4">
+                    <div class="flex items-center gap-2 mb-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                        <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Online Sales</p>
+                    </div>
+                    <p id="total-online" class="text-xl font-bold text-blue-600">₹0.00</p>
+                </div>
+            </div>
+            <!-- Udhari Received Card -->
+            <div class="rounded-lg border bg-white text-card-foreground shadow-sm hover:shadow-lg transition-shadow">
+                <div class="p-4">
+                    <div class="flex items-center gap-2 mb-2">
+                       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                        <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Udhari Rcvd</p>
+                    </div>
+                    <p id="total-udhari-paid" class="text-xl font-bold text-yellow-500">₹0.00</p>
+                </div>
+            </div>
+            <!-- Expenses Card -->
+            <div class="rounded-lg border bg-white text-card-foreground shadow-sm hover:shadow-lg transition-shadow">
+                <div class="p-4">
+                    <div class="flex items-center gap-2 mb-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" /></svg>
+                        <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Expenses</p>
+                    </div>
+                    <p id="total-expense" class="text-xl font-bold text-red-600">₹0.00</p>
+                </div>
+            </div>
+            <!-- Today's Cash Card -->
+            <div class="rounded-lg border bg-white text-card-foreground shadow-sm hover:shadow-lg transition-shadow">
+                <div class="p-4">
+                    <div class="flex items-center gap-2 mb-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v.01" /></svg>
+                        <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Today's Cash</p>
+                    </div>
+                    <p id="total-todays-cash" class="text-xl font-bold text-sky-600">₹0.00</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Horizontal scrollable tabs -->
+        <div class="mb-6">
+            <div id="tabs" class="border-b border-gray-200 overflow-x-auto">
+                <div class="flex space-x-0 min-w-max">
+                    <button data-tab="sales" class="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all duration-200 whitespace-nowrap tab-active">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                        Sales/Returns
+                    </button>
+                    <button data-tab="expenses" class="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all duration-200 whitespace-nowrap border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300 hover:bg-gray-50">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" /></svg>
+                        Expenses
+                    </button>
+                    <button data-tab="udhari" class="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all duration-200 whitespace-nowrap border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300 hover:bg-gray-50">
+                       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                        Udhari
+                    </button>
+                    <button data-tab="staff" class="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all duration-200 whitespace-nowrap border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300 hover:bg-gray-50">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M15 21a6 6 0 00-9-5.197M15 21a6 6 0 00-9-5.197" /></svg>
+                        Staff
+                    </button>
+                    <button data-tab="inventory" class="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all duration-200 whitespace-nowrap border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300 hover:bg-gray-50">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+                        Inventory Bill
+                    </button>
+                    <button data-tab="creditors" class="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all duration-200 whitespace-nowrap border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300 hover:bg-gray-50">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                        Creditors Report
+                    </button>
+                    <button data-tab="calc" class="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all duration-200 whitespace-nowrap border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300 hover:bg-gray-50">
+                       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                        Calculator
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- --- Tabs Content --- -->
+        <div id="tab-content" class="mb-6">
+            <!-- SALES TAB -->
+            <div data-panel="sales">
+                <form id="sale-form" class="bg-white shadow-md p-4 rounded-lg space-y-3">
+                    <h3 class="text-lg font-semibold mb-1">Add Sale or Return</h3>
+                    <div id="sale-type-container" class="grid grid-cols-2 gap-2">
+                        <button type="button" class="sale-type-btn p-2 rounded border border-gray-300" data-type="Cash" tabindex="0">Cash</button>
+                        <button type="button" class="sale-type-btn p-2 rounded border border-gray-300 bg-blue-600 text-white active" data-type="Online" tabindex="0">Online</button>
+                        <button type="button" class="sale-type-btn p-2 rounded border border-gray-300" data-type="UDHAR DIYE" tabindex="0">Udhari</button>
+                        <button type="button" class="sale-type-btn p-2 rounded bg-orange-200 text-orange-700" data-type="Cash Return" tabindex="0">Cash Return</button>
+                        <button type="button" class="sale-type-btn col-span-2 p-2 rounded bg-red-100 text-red-700 border-red-200" data-type="Credit Return" tabindex="0">Udhari Return</button>
+                    </div>
+                    <input type="hidden" id="sale-type" value="Online">
+                    <input type="number" step="0.01" id="sale-amount" class="w-full border rounded p-2" placeholder="Amount" required>
+                    <div id="customer-wrapper" class="hidden">
+                        <input type="text" id="customer-name" class="w-full border rounded p-2" placeholder="Customer Name (required for Udhari)">
+                    </div>
+                    <button class="font-bold px-4 py-2 rounded w-full transition-all duration-300 ease-in-out transform hover:scale-105 bg-blue-600 hover:bg-blue-700 text-white">Add Entry</button>
+                </form>
+            </div>
+
+            <!-- EXPENSES TAB -->
+            <div data-panel="expenses" class="hidden">
+                <form id="expense-form" class="bg-white shadow-md p-4 rounded-lg space-y-3">
+                    <h3 class="text-lg font-semibold mb-1">Add Expense</h3>
+                    <input type="number" step="0.01" id="expense-amount" class="w-full border rounded p-2" placeholder="Expense Amount" required>
+                    <input type="text" id="expense-desc" class="w-full border rounded p-2" placeholder="Description" required>
+                    <button class="font-bold px-4 py-2 rounded w-full transition-all duration-300 ease-in-out transform hover:scale-105 bg-red-600 hover:bg-red-700 text-white">Add Expense</button>
+                </form>
+            </div>
+
+            <!-- UDHARI TAB -->
+            <div data-panel="udhari" class="hidden">
+                <form id="credit-payment-form" class="bg-white shadow-md p-4 rounded-lg space-y-3">
+                    <h3 class="text-lg font-semibold mb-1">Record Udhari Payment</h3>
+                    <input type="number" step="0.01" id="credit-payment-amount" class="w-full border rounded p-2" placeholder="Paid Amount" required>
+                    <input type="text" id="credit-payment-customer" class="w-full border rounded p-2" placeholder="Customer Name" required>
+                    <div class="flex space-x-3">
+                        <label><input name="payment-method" type="radio" value="Cash" class="mr-2" checked>Cash</label>
+                        <label><input name="payment-method" type="radio" value="Online" class="mr-2">Online</label>
+                    </div>
+                    <button class="font-bold px-4 py-2 rounded w-full transition-all duration-300 ease-in-out transform hover:scale-105 bg-green-600 hover:bg-green-700 text-white">Add Udhari Paid</button>
+                </form>
+            </div>
+
+            <!-- STAFF TAB -->
+            <div data-panel="staff" class="hidden">
+                <div class="bg-white shadow-md p-4 rounded-lg mb-2">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-lg font-semibold">Staff Management</h3>
+                        <button id="add-staff-btn" class="px-2 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm transition-all duration-300 ease-in-out transform hover:scale-105">Add Staff</button>
+                    </div>
+                    <form id="attendance-payment-form" class="space-y-2">
+                        <select id="staff-select" class="w-full border rounded p-2 mb-2"></select>
+                        <button type="button" id="mark-attendance-btn" class="w-full px-2 py-1 rounded bg-red-600 hover:bg-red-700 text-white text-sm">Mark Absent</button>
+                        <div class="flex gap-2 mt-2">
+                            <input type="number" step="0.01" id="payment-amount" class="w-1/2 border rounded p-2" placeholder="Payment Amount">
+                            <input type="text" id="payment-desc" class="w-1/2 border rounded p-2" placeholder="Description">
+                        </div>
+                        <button type="button" id="make-payment-btn" class="w-full px-2 py-1 rounded bg-yellow-500 hover:bg-yellow-600 text-white text-sm mt-1">Make Payment</button>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- INVENTORY BILL TAB -->
+            <div data-panel="inventory" class="hidden">
+                <div class="bg-white p-4 rounded-lg shadow-md mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div><label for="supplier" class="block text-sm font-medium text-gray-700">Supplier Name</label><input list="dealerList" id="supplier" onchange="saveDealer(this.value)" oninput="autoSaveForm()" class="mt-1 block w-full p-2 border rounded bg-gray-50 uppercase"></div>
+                    <datalist id="dealerList"></datalist>
+                    <div><label for="billno" class="block text-sm font-medium text-gray-700">Bill No</label><input type="text" id="billno" oninput="autoSaveForm()" class="mt-1 block w-full p-2 border rounded bg-gray-50 uppercase"></div>
+                    <div><label for="billdate" class="block text-sm font-medium text-gray-700">Bill Date</label><input type="text" id="billdate" oninput="autoSaveForm()" class="mt-1 block w-full p-2 border rounded bg-gray-50 uppercase"></div>
+                    <div><label for="hsn" class="block text-sm font-medium text-gray-700">HSN Code</label><input type="text" id="hsn" onchange="storeHSN(this.value)" oninput="autoSaveForm()" class="mt-1 block w-full p-2 border rounded bg-gray-50 uppercase"></div>
+                    <div><label for="cgst" class="block text-sm font-medium text-gray-700">CGST (%)</label><input type="number" id="cgst" value="2.5" oninput="autoSaveForm()" class="mt-1 block w-full p-2 border rounded bg-gray-50"></div>
+                    <div><label for="sgst" class="block text-sm font-medium text-gray-700">SGST (%)</label><input type="number" id="sgst" value="2.5" oninput="autoSaveForm()" class="mt-1 block w-full p-2 border rounded bg-gray-50"></div>
+                    <div><label for="marginPercentage" class="block text-sm font-medium text-gray-700">Margin (%)</label><input type="number" id="marginPercentage" value="60" oninput="saveMargin(); updateMRPPreview(); autoSaveForm();" class="mt-1 block w-full p-2 border rounded bg-gray-50"></div>
+                    <div><label for="roundTo" class="block text-sm font-medium text-gray-700">Round MRP</label><select id="roundTo" onchange="updateMRPPreview()" oninput="autoSaveForm()" class="mt-1 block w-full p-2 border rounded bg-gray-50"><option value="49">to X49/X99</option><option value="99">to X99</option></select></div>
+                </div>
+
+                <div class="bg-white p-4 rounded-lg shadow-md mb-6 text-center">
+                    <label class="font-medium text-gray-700">Size Entry Mode:</label>
+                    <div id="sizeModeContainer" class="flex flex-wrap justify-center gap-2 mt-2" role="group">
+                        <button type="button" id="modeBtn-manual" onclick="saveSizeMode('manual')" class="size-mode-btn px-4 py-2 text-sm font-medium">Manual</button>
+                        <button type="button" id="modeBtn-checkbox-jeans" onclick="saveSizeMode('checkbox-jeans')" class="size-mode-btn px-4 py-2 text-sm font-medium">Jeans</button>
+                        <button type="button" id="modeBtn-checkbox-shirts" onclick="saveSizeMode('checkbox-shirts')" class="size-mode-btn px-4 py-2 text-sm font-medium">Shirts</button>
+                    </div>
+                </div>
+                
+                <div id="itemForm" class="bg-white p-4 rounded-lg shadow-md mb-6 space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <input type="text" id="itemname" onkeydown="handleFormInputKeydown(event, 'itemname')" oninput="autoSaveForm()" placeholder="Item Name" onblur="suggestLastRate(this.value)" class="p-2 border rounded bg-gray-50 uppercase md:col-span-1">
+                        <input type="number" id="rate" onkeydown="handleFormInputKeydown(event, 'rate')" oninput="updateMRPPreview(); autoSaveForm();" placeholder="Purchase Rate" class="p-2 border rounded bg-gray-50 md:col-span-1">
+                        <input type="text" id="mrppreview" readonly placeholder="MRP Preview" class="p-2 border rounded bg-gray-200 text-sm md:col-span-1">
+                    </div>
+                    <div id="manualSizeInput" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input type="text" id="size" onkeydown="handleFormInputKeydown(event, 'size')" oninput="autoSaveForm()" placeholder="Size (e.g., S TO XXL, 30 TO 42, 3XL)" class="p-2 border rounded bg-gray-50 uppercase">
+                        <input id="colour" onkeydown="handleFormInputKeydown(event, 'colour')" oninput="autoSaveForm()" placeholder="Colour" class="p-2 border rounded bg-gray-50 uppercase">
+                    </div>
+                    <div id="checkboxSizeContainer" style="display:none;" class="space-y-4">
+                        <input id="colourCheckboxMode" onkeydown="handleFormInputKeydown(event, 'colourCheckboxMode')" oninput="autoSaveForm()" placeholder="Colour (for all checked sizes)" class="w-full p-2 border rounded bg-gray-50 uppercase">
+                        <div id="checkboxSizeInput" class="p-4 border-t border-gray-200"></div>
+                    </div>
+                    <button type="button" onclick="addSizes()" class="w-full bg-green-600 text-white font-bold py-2.5 px-4 rounded hover:bg-green-700 transition-colors flex items-center justify-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+                        Add Item(s) to Bill
+                    </button>
+                </div>
+
+                <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+                    <div class="mb-4">
+                        <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="🔍 Search for items in the bill..." class="w-full p-2 border rounded bg-gray-50">
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table id="billTable" class="w-full text-sm text-left text-gray-500">
+                            <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-4 py-3">Supplier/Bill/Date</th><th scope="col" class="px-4 py-3">Item</th><th scope="col" class="px-4 py-3">Size/Colour</th>
+                                    <th scope="col" class="px-4 py-3">Qty</th><th scope="col" class="px-4 py-3">Rate</th><th scope="col" class="px-4 py-3">MRP</th>
+                                    <th scope="col" class="px-4 py-3 text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-white p-4 rounded-lg shadow-md">
+                        <h3 class="text-lg font-semibold mb-4 text-center">Actions</h3>
+                        <div id="actionsContainer" class="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                            <button onclick="downloadExcel()" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded hover:bg-blue-700 transition">Export Excel</button>
+                            <button onclick="exportPDF()" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded hover:bg-blue-700 transition">Export PDF</button>
+                            <button onclick="importExcel()" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded hover:bg-blue-700 transition">Import Excel</button>
+                            <button onclick="undoActionInventory()" class="bg-yellow-500 text-black font-semibold py-2 px-4 rounded hover:bg-yellow-600 transition">Undo</button>
+                            <button onclick="redoActionInventory()" class="bg-cyan-500 text-white font-semibold py-2 px-4 rounded hover:bg-cyan-600 transition">Redo</button>
+                            <button onclick="clearAllInventory()" class="bg-red-600 text-white font-semibold py-2 px-4 rounded hover:bg-red-700 transition col-span-2 lg:col-span-1">Clear All</button>
+                        </div>
+                    </div>
+                    <div id="quantitySummary" class="bg-white p-4 rounded-lg shadow-md">
+                        <h3 class="text-lg font-semibold mb-4 text-center">Item Quantity Summary</h3>
+                        <ul id="summaryList" class="space-y-2"></ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CREDITORS REPORT TAB -->
+            <div data-panel="creditors" class="hidden">
+                <div class="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+                    <h1 class="text-3xl sm:text-4xl font-bold text-gray-900 mb-6 text-center">Creditor Report Generator</h1>
+
+                    <!-- Form for adding new creditors -->
+                    <div class="bg-gray-50 p-6 rounded-xl mb-8">
+                        <h2 class="text-2xl font-semibold mb-4 text-gray-700">Add New Creditor</h2>
+                        <form id="creditor-form" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                            <div class="md:col-span-1">
+                                <label for="creditor-name" class="block text-sm font-medium text-gray-600 mb-1">Creditor Name</label>
+                                <input type="text" id="creditor-name" placeholder="e.g., John Doe" class="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200" required>
+                            </div>
+                            <div>
+                                <label for="amount" class="block text-sm font-medium text-gray-600 mb-1">Amount</label>
+                                <input type="number" id="amount" placeholder="e.g., 1500" class="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200" required>
+                            </div>
+                            <button type="submit" class="w-full bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-200 shadow-sm">Add Creditor</button>
+                        </form>
+                    </div>
+
+                    <!-- Creditors Table -->
+                    <div>
+                        <div class="flex flex-col sm:flex-row justify-between items-center mb-4">
+                            <h2 class="text-2xl font-semibold text-gray-700">Creditor List</h2>
+                            <button id="generate-creditor-pdf" class="w-full sm:w-auto mt-4 sm:mt-0 bg-green-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-200 shadow-sm">Generate PDF</button>
+                        </div>
+                        <div class="overflow-x-auto bg-white rounded-xl shadow">
+                            <table id="creditors-table" class="w-full text-left">
+                                <thead class="bg-gray-200">
+                                    <tr>
+                                        <th class="p-4 text-sm font-semibold text-gray-600 uppercase tracking-wider">Creditor Name</th>
+                                        <th class="p-4 text-sm font-semibold text-gray-600 uppercase tracking-wider text-right">Amount</th>
+                                        <th class="p-4 text-sm font-semibold text-gray-600 uppercase tracking-wider text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="creditors-table-body" class="divide-y divide-gray-200">
+                                    <!-- Rows will be inserted here by JavaScript -->
+                                </tbody>
+                                <tfoot class="bg-gray-200">
+                                    <tr>
+                                        <td class="p-4 font-bold text-lg text-gray-800">Total</td>
+                                        <td id="total-amount" class="p-4 font-bold text-lg text-gray-800 text-right">0.00</td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                             <div id="no-creditors-message" class="text-center p-8 text-gray-500">
+                                No creditors added yet.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CALCULATOR TAB -->
+            <div data-panel="calc" class="hidden">
+                <div class="bg-white shadow-md p-4 rounded-lg mt-2">
+                    <h3 class="text-lg font-semibold mb-3">Currency Denomination Calculator</h3>
+                    <div id="calculator-container" class="grid grid-cols-2 sm:grid-cols-3 gap-4"></div>
+                    <div class="mt-3 font-bold text-right text-2xl">
+                        Total: ₹<span id="calculator-total">0.00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- REPORT SECTION (Always Visible) -->
+        <div id="report-section">
+            <div class="bg-white shadow-md p-4 rounded-lg space-y-3">
+                 <span class="font-bold text-xl">Report for <span id="report-date-display"></span></span>
+                <!-- Chart Section -->
+                <div class="my-4 p-2 bg-gray-50 rounded-lg">
+                    <canvas id="salesChart"></canvas>
+                </div>
+
+                <!-- NEW 3-COLUMN LAYOUT FOR TRANSACTIONS -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 my-6">
+                    <!-- Cash Transactions Column -->
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h3 class="font-semibold text-lg mb-2 text-green-700">Cash Transactions</h3>
+                        <div class="overflow-y-auto h-96">
+                            <table class="w-full text-sm">
+                                <tbody id="cash-report-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Online Transactions Column -->
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h3 class="font-semibold text-lg mb-2 text-blue-700">Online Transactions</h3>
+                        <div class="overflow-y-auto h-96">
+                            <table class="w-full text-sm">
+                                <tbody id="online-report-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Expenses Column -->
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h3 class="font-semibold text-lg mb-2 text-red-700">Expenses & Outflows</h3>
+                        <div class="overflow-y-auto h-96">
+                            <table class="w-full text-sm">
+                                <tbody id="expense-report-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="overflow-x-auto">
+                    <table class="w-full mt-2 report-table">
+                         <tfoot class="font-semibold bg-gray-50">
+                            <tr>
+                                <td colspan="4" class="border p-2 text-right">Today's Cashflow Total</td>
+                                <td class="border p-2 text-right" id="report-total"></td>
+                                <td class="border p-1"></td>
+                            </tr>
+                            <tr>
+                                <td colspan="4" class="border p-2 text-right">All-Time Outstanding Udhari</td>
+                                <td class="border p-2 text-right" id="credit-total"></td>
+                                <td class="border p-1"></td>
+                            </tr>
+                            <tr class="text-lg bg-gray-200">
+                                <td colspan="4" class="border p-2 text-right">Closing Balance (Cash in Hand)</td>
+                                <td class="border p-2 text-right" id="grand-total"></td>
+                                <td class="border p-1"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                <div class="flex flex-wrap gap-2 mt-3">
+                    <button id="export-pdf-btn" class="px-3 py-2 rounded bg-red-600 hover:bg-red-700 text-white">Full Report PDF</button>
+                    <button id="export-cash-pdf-btn" class="px-3 py-2 rounded bg-green-700 hover:bg-green-800 text-white">Cash Report PDF</button>
+                    <button id="export-online-pdf-btn" class="px-3 py-2 rounded bg-blue-700 hover:bg-blue-800 text-white">Online Report PDF</button>
+                    <button id="export-excel-btn" class="px-3 py-2 rounded bg-green-700 hover:bg-green-800 text-white">Export Excel</button>
+                    <button id="import-pdf-btn" class="px-3 py-2 rounded bg-purple-600 hover:bg-purple-700 text-white">Import PDF</button>
+                    <input type="file" id="import-pdf-input" class="hidden" accept=".pdf">
+                    <button id="export-json-btn" class="px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white">Export Backup (JSON)</button>
+                    <button id="import-json-btn" class="px-3 py-2 rounded bg-orange-600 hover:bg-orange-700 text-white">Restore Backup</button>
+                    <input type="file" id="import-json-input" class="hidden" accept=".json">
+                    <button id="clear-all-btn" class="px-3 py-2 rounded bg-gray-700 hover:bg-gray-800 text-white">Clear All Data</button>
+                </div>
+            </div>
+            <!-- Staff Table Below -->
+            <div class="bg-white shadow-md p-4 rounded-lg space-y-3 mt-4">
+                <div class="flex items-center gap-4 flex-wrap">
+                    <span class="text-lg font-semibold">Staff Report</span>
+                    <select id="staff-report-type" class="border rounded p-1 text-sm">
+                        <option value="daily">Daily</option>
+                        <option value="monthly">Monthly</option>
+                    </select>
+                    <input type="date" id="staff-report-date" class="border rounded text-sm p-1">
+                    <input type="month" id="staff-report-month" class="border rounded text-sm p-1 hidden">
+                    <button id="monthly-report-btn" class="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm">Monthly Report</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full report-table mt-2">
+                        <thead id="staff-report-head"></thead>
+                        <tbody id="staff-report-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div id="backup-status" class="text-center text-xs text-gray-500 mt-4"></div>
+    </div>
+
+    <!-- MODALS & TOAST -->
+    <div id="confirmation-modal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center">
+        <div class="bg-white p-5 rounded-lg shadow-lg max-w-xs mx-auto">
+            <div class="text-center space-y-2">
+                <div class="text-xl font-bold">Are you sure?</div>
+                <div id="modal-message" class="text-gray-600"></div>
+                <div class="flex gap-4 justify-center mt-4">
+                    <button id="modal-confirm-btn" class="px-4 py-2 bg-red-600 text-white rounded">Yes</button>
+                    <button id="modal-cancel-btn" class="px-4 py-2 bg-gray-300 rounded">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="edit-modal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center">
+        <form id="edit-form" class="bg-white p-5 rounded-lg shadow-xl w-full max-w-sm mx-auto space-y-3">
+            <h3 class="text-xl font-semibold" id="edit-modal-title">Edit Entry</h3>
+            <input type="hidden" id="edit-entry-id">
+            <div>
+                <label class="block text-sm">Type:</label>
+                <input type="text" id="edit-sale-type" class="w-full border rounded p-2 bg-gray-100" readonly>
+            </div>
+            <div id="edit-details-wrapper">
+                <label class="block text-sm">Details:</label>
+                <input type="text" id="edit-details" class="w-full border rounded p-2">
+            </div>
+            <div>
+                <label class="block text-sm">Amount:</label>
+                <input type="number" step="0.01" id="edit-amount" class="w-full border rounded p-2" required>
+            </div>
+            <div class="flex gap-3 mt-2">
+                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded">Save</button>
+                <button type="button" id="edit-modal-cancel-btn" class="px-4 py-2 bg-gray-300 rounded">Cancel</button>
+            </div>
+        </form>
+    </div>
+
+    <div id="add-staff-modal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center">
+        <form id="add-staff-form" class="bg-white p-5 rounded-lg shadow-lg w-full max-w-sm mx-auto space-y-3">
+            <div class="text-xl font-semibold">Add Staff Member</div>
+            <input type="text" id="new-staff-name" class="w-full border rounded p-2" placeholder="Staff Name" required>
+            <div class="flex gap-4 mt-2">
+                <button class="px-4 py-2 bg-blue-600 text-white rounded" type="submit">Add</button>
+                <button class="px-4 py-2 bg-gray-300 rounded" type="button" id="add-staff-cancel-btn">Cancel</button>
+            </div>
+        </form>
+    </div>
+    
+    <div id="edit-staff-modal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center">
+        <form id="edit-staff-form" class="bg-white p-5 rounded-lg shadow-lg w-full max-w-sm mx-auto space-y-3">
+            <div class="text-xl font-semibold">Edit Staff Member</div>
+            <input type="hidden" id="staff-edit-id">
+            <input type="text" id="staff-edit-name" class="w-full border rounded p-2" placeholder="Staff Name" required>
+            <div class="flex gap-4 mt-2">
+                <button class="px-4 py-2 bg-blue-600 text-white rounded" type="submit">Save</button>
+                <button class="px-4 py-2 bg-gray-300 rounded" type="button" id="edit-staff-cancel-btn">Cancel</button>
+            </div>
+        </form>
+    </div>
+
+    <div id="pdf-summary-modal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center">
+        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md mx-auto">
+            <h3 class="text-xl font-bold mb-4" id="pdf-summary-title">Report Summary</h3>
+            <div id="pdf-summary-content" class="space-y-2 mb-6"></div>
+            <div class="flex gap-4 justify-end">
+                <button id="pdf-summary-cancel-btn" class="px-4 py-2 bg-gray-300 rounded">Cancel</button>
+                <button id="pdf-summary-download-btn" class="px-4 py-2 bg-red-600 text-white rounded">Download PDF</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="inventory-modal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center">
+        <div class="modal-content bg-white rounded-lg shadow-xl p-4 sm:p-6">
+            <div class="modal-body"></div>
+            <div class="modal-footer mt-4 pt-4 border-t border-gray-200 flex justify-end gap-3"></div>
+        </div>
+    </div>
+
+    <div id="toast"></div>
+
+    <script>
+    // --- MAIN APP LOGIC ---
+    document.addEventListener('DOMContentLoaded', function() {
+        // Global state object
+        let salesChartInstance = null;
+        let currentPdfGenerator = null;
+
+        window.state = {
+            entries: [],
+            staff: [],
+            openingBalance: 0,
+            selectedDate: new Date().toISOString().slice(0, 10),
+            inventory: {
+                billData: [],
+                undoStack: [],
+                redoStack: [],
+                itemsToConfirm: [],
+                updatesToConfirm: [],
+                currentBatchSource: null,
+            },
+            creditors: [] // New state for creditors
+        };
+        const LSK = 'mob_data_v11';
+        
+        // ---- DOM Element Selection ----
+        const reportDateInput = document.getElementById('report-date-input');
+        const reportDateDisplay = document.getElementById('report-date-display');
+        const openingBalanceInput = document.getElementById('opening-balance');
+        const reportBody = document.getElementById('report-body');
+        const reportTotal = document.getElementById('report-total');
+        const creditTotalEl = document.getElementById('credit-total');
+        const grandTotalEl = document.getElementById('grand-total');
+        const saleForm = document.getElementById('sale-form');
+        const saleTypeContainer = document.getElementById('sale-type-container');
+        const saleTypeInput = document.getElementById('sale-type');
+        const saleAmount = document.getElementById('sale-amount');
+        const customerWrapper = document.getElementById('customer-wrapper');
+        const customerName = document.getElementById('customer-name');
+        const expenseForm = document.getElementById('expense-form');
+        const expenseDesc = document.getElementById('expense-desc');
+        const expenseAmount = document.getElementById('expense-amount');
+        const creditPaymentForm = document.getElementById('credit-payment-form');
+        const creditPaymentAmount = document.getElementById('credit-payment-amount');
+        const creditPaymentCustomer = document.getElementById('credit-payment-customer');
+        const addStaffBtn = document.getElementById('add-staff-btn');
+        const staffSelect = document.getElementById('staff-select');
+        const markAttendanceBtn = document.getElementById('mark-attendance-btn');
+        const paymentAmountInput = document.getElementById('payment-amount');
+        const paymentDescInput = document.getElementById('payment-desc');
+        const makePaymentBtn = document.getElementById('make-payment-btn');
+        const staffReportHead = document.getElementById('staff-report-head');
+        const staffReportBody = document.getElementById('staff-report-body');
+        const staffReportType = document.getElementById('staff-report-type');
+        const staffReportDate = document.getElementById('staff-report-date');
+        const staffReportMonth = document.getElementById('staff-report-month');
+        const calculatorContainer = document.getElementById('calculator-container');
+        const calculatorTotalEl = document.getElementById('calculator-total');
+        const confirmationModal = document.getElementById('confirmation-modal');
+        const modalMessage = document.getElementById('modal-message');
+        const modalConfirmBtn = document.getElementById('modal-confirm-btn');
+        const modalCancelBtn = document.getElementById('modal-cancel-btn');
+        const editModal = document.getElementById('edit-modal');
+        const editForm = document.getElementById('edit-form');
+        const editEntryId = document.getElementById('edit-entry-id');
+        const editSaleType = document.getElementById('edit-sale-type');
+        const editAmount = document.getElementById('edit-amount');
+        const editDetails = document.getElementById('edit-details');
+        const editModalCancelBtn = document.getElementById('edit-modal-cancel-btn');
+        const addStaffModal = document.getElementById('add-staff-modal');
+        const addStaffForm = document.getElementById('add-staff-form');
+        const newStaffNameInput = document.getElementById('new-staff-name');
+        const addStaffCancelBtn = document.getElementById('add-staff-cancel-btn');
+        const staffEditModal = document.getElementById('edit-staff-modal');
+        const staffEditForm = document.getElementById('edit-staff-form');
+        const staffEditId = document.getElementById('staff-edit-id');
+        const staffEditName = document.getElementById('staff-edit-name');
+        const staffEditCancelBtn = document.getElementById('edit-staff-cancel-btn');
+        const exportPdfBtn = document.getElementById('export-pdf-btn');
+        const exportCashPdfBtn = document.getElementById('export-cash-pdf-btn');
+        const exportOnlinePdfBtn = document.getElementById('export-online-pdf-btn');
+        const exportExcelBtn = document.getElementById('export-excel-btn');
+        const importPdfBtn = document.getElementById('import-pdf-btn');
+        const importPdfInput = document.getElementById('import-pdf-input');
+        const exportJsonBtn = document.getElementById('export-json-btn');
+        const importJsonBtn = document.getElementById('import-json-btn');
+        const importJsonInput = document.getElementById('import-json-input');
+        const pdfSummaryModal = document.getElementById('pdf-summary-modal');
+        const pdfSummaryTitle = document.getElementById('pdf-summary-title');
+        const pdfSummaryContent = document.getElementById('pdf-summary-content');
+        const pdfSummaryCancelBtn = document.getElementById('pdf-summary-cancel-btn');
+        const pdfSummaryDownloadBtn = document.getElementById('pdf-summary-download-btn');
+        const toastEl = document.getElementById('toast');
+        const totalOpeningEl = document.getElementById('total-opening');
+        const totalCashEl = document.getElementById('total-cash');
+        const totalOnlineEl = document.getElementById('total-online');
+        const totalUdhariPaidEl = document.getElementById('total-udhari-paid');
+        const totalExpenseEl = document.getElementById('total-expense');
+        const totalTodaysCashEl = document.getElementById('total-todays-cash');
+        const backupStatusEl = document.getElementById('backup-status');
+        const monthlyReportBtn = document.getElementById('monthly-report-btn');
+        const clearAllBtn = document.getElementById('clear-all-btn');
+
+        // --- Inventory App DOM Elements ---
+        const inventoryModal = document.getElementById('inventory-modal');
+        const invModalBody = inventoryModal.querySelector('.modal-body');
+        const invModalFooter = inventoryModal.querySelector('.modal-footer');
+        const jeansSizes = Array.from({ length: (44 - 30) / 2 + 1 }, (_, i) => 30 + i * 2);
+        const shirtSizes = ["S", "M", "L", "XL", "XXL", "3XL", "4XL", "5XL", "6XL"];
+
+        // --- Creditors Report DOM Elements ---
+        const creditorForm = document.getElementById('creditor-form');
+        const creditorNameInput = document.getElementById('creditor-name');
+        const amountInput = document.getElementById('amount');
+        const creditorsTableBody = document.getElementById('creditors-table-body');
+        const totalAmountCell = document.getElementById('total-amount');
+        const generateCreditorPdfButton = document.getElementById('generate-creditor-pdf');
+        const noCreditorsMessage = document.getElementById('no-creditors-message');
+        const creditorsTable = document.getElementById('creditors-table');
+
+
+        // ---- STATE MANAGEMENT & UTILITY FUNCTIONS ----
+        let actionToConfirm = null;
+        let lastRate = '';
+        let lastItem = '';
+        let currentSizeMode = "manual";
+
+        function showToast(msg) {
+            toastEl.textContent = msg;
+            toastEl.classList.add('show');
+            setTimeout(() => toastEl.classList.remove('show'), 2500);
+        }
+
+        // Date Utility Functions
+        function convertToYYYYMMDD(dateString) {
+            if (!dateString) return '';
+            // If already YYYY-MM-DD, return it
+            if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                return dateString;
+            }
+            // Try to parse DD/MM/YYYY
+            const parts = dateString.split('/');
+            if (parts.length === 3) {
+                return `${parts[2]}-${parts[1]}-${parts[0]}`;
+            }
+            // Fallback for other formats or invalid
+            const date = new Date(dateString);
+            if (!isNaN(date.getTime())) {
+                return date.toISOString().slice(0, 10);
+            }
+            return ''; // Invalid date string
+        }
+
+        function convertToDDMMYYYY(dateStringYYYYMMDD) {
+            if (!dateStringYYYYMMDD) return '';
+            const date = new Date(dateStringYYYYMMDD + 'T00:00:00'); // Add T00:00:00 to avoid timezone issues
+            if (isNaN(date.getTime())) return ''; // Invalid date
+
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}/${month}/${year}`;
+        }
+
+
+        function loadState() {
+            let data = JSON.parse(localStorage.getItem(LSK) || '{}');
+            state.entries = data.entries || [];
+            state.staff = data.staff || [];
+            state.openingBalance = data.openingBalance || 0;
+            state.selectedDate = data.selectedDate || new Date().toISOString().slice(0, 10);
+            
+            // Load inventory specific data
+            const savedInventoryData = JSON.parse(localStorage.getItem('garmentBillData') || '[]');
+            state.inventory.billData = savedInventoryData;
+
+            // Migrate old DD/MM/YYYY dates to YYYY-MM-DD on initial load if necessary
+            state.inventory.billData.forEach(item => {
+                if (item.billdate && item.billdate.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+                    item.billdate = convertToYYYYMMDD(item.billdate);
+                }
+            });
+
+            // Load creditors data
+            state.creditors = JSON.parse(localStorage.getItem('creditors_data') || '[]');
+            
+            openingBalanceInput.value = state.openingBalance;
+            reportDateInput.value = state.selectedDate;
+            updateBackupStatus();
+        }
+        
+        function saveState() {
+            state.openingBalance = parseFloat(openingBalanceInput.value) || 0;
+            state.selectedDate = reportDateInput.value;
+            localStorage.setItem(LSK, JSON.stringify(state));
+            localStorage.setItem('garmentBillData', JSON.stringify(state.inventory.billData)); // Save inventory separately
+            localStorage.setItem('creditors_data', JSON.stringify(state.creditors)); // Save creditors data
+            updateBackupStatus();
+        }
+        
+        function updateBackupStatus() {
+            const now = new Date();
+            backupStatusEl.textContent = `Last saved: ${now.toLocaleTimeString()}`;
+        }
+        
+        setInterval(saveState, 5000);
+
+        function renderAll() {
+            updateReport();
+            updateStaffReport();
+            populateStaffSelect();
+            updateAttendanceButtonState();
+            // Inventory Tab Render
+            loadDealers();
+            updateMRPPreview();
+            renderBillTable();
+            updateQuantitySummary();
+            saveSizeMode(localStorage.getItem("sizeEntryMode") || "manual");
+            // Creditors Tab Render
+            renderCreditorsTable();
+        }
+
+        // ==== UI RENDER AND UPDATE FUNCTIONS ====
+        function updateReport() {
+            const selectedDateObj = new Date(state.selectedDate);
+            const selectedLocaleDate = selectedDateObj.toLocaleDateString('en-GB');
+            reportDateDisplay.textContent = selectedLocaleDate;
+
+            let cashflowTotal = 0;
+            let allTimeCredit = 0;
+            let cashTotal = 0, onlineTotal = 0, udhariPaidCashTotal = 0, expenseTotal = 0, todaysCashTotal = 0;
+            
+            state.entries.forEach(e => {
+                if (e.type === 'UDHAR DIYE') allTimeCredit += e.amount;
+                else if (e.type === 'Credit Return') allTimeCredit += e.amount;
+                else if (e.type === 'UDHARI PAID') allTimeCredit -= Math.abs(e.amount);
+            });
+            creditTotalEl.textContent = allTimeCredit.toFixed(2);
+            creditTotalEl.className = `border p-2 text-right font-bold ${allTimeCredit > 0 ? 'text-orange-600' : 'text-green-600'}`;
+
+            let todaysEntries = state.entries.filter(e => e.date === state.selectedDate);
+            todaysEntries.sort((a, b) => a.id - b.id);
+            
+            // Clear old single report body if it exists
+            if (document.getElementById('report-body')) {
+                 document.getElementById('report-body').innerHTML = '';
+            }
+
+            let entryNumber = 1;
+            todaysEntries.forEach(e => {
+                if (['Cash', 'Online', 'UDHARI PAID'].includes(e.type)) {
+                    cashflowTotal += e.amount;
+                } else if (['Cash Return', 'Expense', 'UDHAR DIYE', 'Credit Return'].includes(e.type)) {
+                    cashflowTotal += e.amount;
+                }
+                
+                switch(e.type) {
+                    case 'Cash': cashTotal += e.amount; break;
+                    case 'Online': onlineTotal += e.amount; break;
+                    case 'UDHARI PAID': 
+                        if (e.details.includes('(Online)')) {
+                            onlineTotal += e.amount;
+                        } else {
+                            udhariPaidCashTotal += e.amount;
+                        }
+                        break;
+                    case 'Expense': expenseTotal += e.amount; break;
+                }
+                if (e.type === 'Cash') {
+                    todaysCashTotal += e.amount;
+                } else if (e.type === 'UDHARI PAID' && e.details.includes('(Cash)')) {
+                    todaysCashTotal += e.amount;
+                } else if (['Cash Return', 'Expense'].includes(e.type)) {
+                    todaysCashTotal += e.amount;
+                }
+            });
+            
+            totalOpeningEl.textContent = `₹${(parseFloat(openingBalanceInput.value) || 0).toFixed(2)}`;
+            totalCashEl.textContent = `₹${cashTotal.toFixed(2)}`;
+            totalOnlineEl.textContent = `₹${onlineTotal.toFixed(2)}`;
+            totalUdhariPaidEl.textContent = `₹${udhariPaidCashTotal.toFixed(2)}`;
+            totalExpenseEl.textContent = `₹${Math.abs(expenseTotal).toFixed(2)}`;
+            totalTodaysCashEl.textContent = `₹${todaysCashTotal.toFixed(2)}`;
+
+            reportTotal.textContent = cashflowTotal.toFixed(2);
+            reportTotal.className = `border p-2 text-right font-bold ${cashflowTotal < 0 ? 'text-red-500' : 'text-green-600'}`;
+            
+            let openingBalance = parseFloat(openingBalanceInput.value) || 0;
+            let grandTotal = openingBalance + todaysCashTotal;
+            grandTotalEl.textContent = grandTotal.toFixed(2);
+            grandTotalEl.className = `border p-2 text-right font-bold ${grandTotal < 0 ? 'text-red-500' : 'text-green-600'}`;
+            
+            updateChart(todaysEntries, cashTotal, onlineTotal, expenseTotal);
+            
+            // NEW: Populate the 3 columns
+            const cashReportBody = document.getElementById('cash-report-body');
+            const onlineReportBody = document.getElementById('online-report-body');
+            const expenseReportBody = document.getElementById('expense-report-body');
+
+            cashReportBody.innerHTML = '';
+            onlineReportBody.innerHTML = '';
+            expenseReportBody.innerHTML = '';
+
+            const createRowHTML = (e) => {
+                return `
+                    <tr data-id="${e.id}" class="border-b hover:bg-gray-100">
+                        <td class="p-2">
+                            <div>${e.details}</div>
+                            <div class="text-xs text-gray-500">${e.time}</div>
+                        </td>
+                        <td class="p-2 text-right font-medium ${e.amount < 0 ? 'text-red-500' : ''}">
+                            ${e.amount.toFixed(2)}
+                        </td>
+                        <td class="p-2 text-right">
+                            <button data-action="edit" title="Edit" class="inline-flex items-center justify-center bg-blue-100 hover:bg-blue-200 p-1 rounded text-xs">✏️</button>
+                            <button data-action="delete" title="Delete" class="inline-flex items-center justify-center bg-red-100 hover:bg-red-200 p-1 rounded text-xs">🗑️</button>
+                        </td>
+                    </tr>
+                `;
+            };
+
+            todaysEntries
+                .filter(e => e.type === 'Cash' || (e.type === 'UDHARI PAID' && !e.details.includes('(Online)')) || e.type === 'Cash Return')
+                .forEach(e => cashReportBody.innerHTML += createRowHTML(e));
+
+            todaysEntries
+                .filter(e => e.type === 'Online' || (e.type === 'UDHARI PAID' && e.details.includes('(Online)')))
+                .forEach(e => onlineReportBody.innerHTML += createRowHTML(e));
+
+            todaysEntries
+                .filter(e => ['Expense', 'Credit Return', 'UDHAR DIYE'].includes(e.type))
+                .forEach(e => expenseReportBody.innerHTML += createRowHTML(e));
+            
+            if (cashReportBody.innerHTML === '') cashReportBody.innerHTML = '<tr><td colspan="3" class="text-center text-gray-400 p-4">No cash transactions.</td></tr>';
+            if (onlineReportBody.innerHTML === '') onlineReportBody.innerHTML = '<tr><td colspan="3" class="text-center text-gray-400 p-4">No online transactions.</td></tr>';
+            if (expenseReportBody.innerHTML === '') expenseReportBody.innerHTML = '<tr><td colspan="3" class="text-center text-gray-400 p-4">No expenses or outflows.</td></tr>';
+        }
+
+
+        function updateChart(todaysEntries, cashTotal, onlineTotal, expenseTotal) {
+            const udhariGivenTotal = todaysEntries.filter(e => e.type === 'UDHAR DIYE').reduce((sum, e) => sum + e.amount, 0);
+            const returnsTotal = todaysEntries.filter(e => ['Cash Return', 'Credit Return'].includes(e.type)).reduce((sum, e) => sum + e.amount, 0);
+
+            const ctx = document.getElementById('salesChart').getContext('2d');
+            if (salesChartInstance) {
+                salesChartInstance.destroy();
+            }
+            salesChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Cash Sales', 'Online Sales', 'Udhari Given', 'Returns', 'Expenses'],
+                    datasets: [{
+                        label: "Today's Financials",
+                        data: [
+                            cashTotal, 
+                            onlineTotal, 
+                            udhariGivenTotal, 
+                            Math.abs(returnsTotal), 
+                            Math.abs(expenseTotal)
+                        ],
+                        backgroundColor: ['#10B981', '#3B82F6', '#F59E0B', '#F97316', '#EF4444'],
+                        borderColor: ['#059669', '#2563EB', '#D97706', '#EA580C', '#DC2626'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: "Today's Financial Summary"
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+
+        function populateStaffSelect() {
+            let currentValue = staffSelect.value;
+            if (state.staff.length === 0) {
+                staffSelect.innerHTML = '<option value="">No staff added</option>';
+            } else {
+                staffSelect.innerHTML = '<option value="" selected>Select staff</option>' +
+                    state.staff.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+            }
+            if (currentValue) staffSelect.value = currentValue;
+            updateStaffActionButtonsState();
+        }
+        
+        function updateStaffActionButtonsState() {
+            const staffId = staffSelect.value;
+            markAttendanceBtn.disabled = !staffId;
+            makePaymentBtn.disabled = !staffId;
+        }
+        
+        function updateStaffReport() {
+            const type = staffReportType.value;
+            const dateSel = staffReportDate.value;
+            const monthSel = staffReportMonth.value;
+            let [year, month] = monthSel ? monthSel.split('-').map(Number) : [null, null];
+            let daysInMo = month ? new Date(year, month, 0).getDate() : 0;
+            
+            let html = `<tr>
+                <th class="border p-2">Name</th>
+                <th class="border p-2">${type === 'daily' ? 'Status' : 'Present Days'}</th>
+                <th class="border p-2 text-right">Paid</th>`;
+            if (type === 'daily') html += '<th class="border p-2">Description(s)</th>';
+            html += '<th class="border p-2 text-center">Action</th></tr>';
+            staffReportHead.innerHTML = html;
+            staffReportBody.innerHTML = "";
+            
+            state.staff.forEach(s => {
+                let status, filteredPayments;
+                if (type === 'daily') {
+                    status = s.absences.includes(dateSel) ? '<span class="text-red-500 font-bold">Absent</span>' : '<span class="text-green-500">Present</span>';
+                    filteredPayments = s.payments.filter(p => p.date === dateSel);
+                } else {
+                    let absencesInMonth = s.absences.filter(d => d.startsWith(monthSel)).length;
+                    status = daysInMo - absencesInMonth;
+                    filteredPayments = s.payments.filter(p => p.date.startsWith(monthSel));
+                }
+                let totalPaid = filteredPayments.reduce((sum, p) => sum + p.amount, 0);
+                let row = document.createElement('tr');
+                row.dataset.id = s.id;
+                let desc = type === 'daily' ? `<td class="border p-2">${filteredPayments.map(p => `${p.description || ''} (${convertToDDMMYYYY(p.date)})`).join(', ')}</td>` : '';
+                row.innerHTML = `
+                    <td class="border p-2">${s.name}</td>
+                    <td class="border p-2">${status}</td>
+                    <td class="border p-2 text-right">${totalPaid.toFixed(2)}</td>
+                    ${desc}
+                    <td class="border p-2 text-center">
+                        <button data-action="edit-staff" class="px-1 bg-blue-100 rounded" title="Edit">✏️</button>
+                        <button data-action="delete-staff" class="px-1 bg-red-100 rounded" title="Delete">🗑</button>
+                    </td>`;
+                staffReportBody.appendChild(row);
+            });
+        }
+        
+        function updateAttendanceButtonState() {
+            const staffId = parseInt(staffSelect.value);
+            if (isNaN(staffId)) {
+                markAttendanceBtn.disabled = true;
+                return;
+            }
+            markAttendanceBtn.disabled = false;
+            const s = state.staff.find(ss => ss.id == staffId);
+            if (!s) return;
+            const isAbsent = s.absences.includes(state.selectedDate);
+            markAttendanceBtn.textContent = isAbsent ? 'Mark Present' : 'Mark Absent';
+            markAttendanceBtn.classList.toggle('bg-red-600', !isAbsent);
+            markAttendanceBtn.classList.toggle('hover:bg-red-700', !isAbsent);
+            markAttendanceBtn.classList.toggle('bg-green-600', isAbsent);
+            markAttendanceBtn.classList.toggle('hover:bg-green-700', isAbsent);
+        }
+
+        //==== EVENT HANDLERS ====
+        function validateAmountInput(e) {
+            const amount = parseFloat(e.target.value);
+            if (isNaN(amount) || amount <= 0) {
+                e.target.setCustomValidity('Amount must be a positive number.');
+                e.target.reportValidity();
+            } else {
+                e.target.setCustomValidity('');
+            }
+        }
+        saleAmount.addEventListener('input', validateAmountInput);
+        expenseAmount.addEventListener('input', validateAmountInput);
+        creditPaymentAmount.addEventListener('input', validateAmountInput);
+        
+        reportDateInput.addEventListener('change', (e) => {
+            state.selectedDate = e.target.value;
+            saveState();
+            renderAll();
+        });
+
+        saleTypeContainer.addEventListener('click', e => {
+            const btn = e.target.closest('.sale-type-btn');
+            if (btn) {
+                saleTypeContainer.querySelectorAll('.sale-type-btn').forEach(b => b.classList.remove('bg-blue-600', 'text-white', 'active'));
+                btn.classList.add('bg-blue-600', 'text-white', 'active');
+                saleTypeInput.value = btn.dataset.type;
+                customerWrapper.classList.toggle('hidden', !['UDHAR DIYE', 'Credit Return'].includes(btn.dataset.type));
+                saleAmount.focus();
+            }
+        });
+        
+        function addEntry(type, amount, details) {
+            const now = new Date();
+            state.entries.push({
+                id: now.getTime(),
+                date: state.selectedDate,
+                time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                type: type,
+                details: details,
+                amount: amount
+            });
+            saveState();
+            renderAll();
+        }
+
+        saleForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (!saleForm.checkValidity()) {
+                showToast('Please fix the errors before submitting.');
+                return;
+            }
+            const type = saleTypeInput.value;
+            const amount = +saleAmount.value;
+            if (['UDHAR DIYE', 'Credit Return'].includes(type) && !customerName.value.trim()) {
+                showToast('Customer name required');
+                return;
+            }
+            let finalAmount = amount;
+            if (['Credit Return', 'Cash Return'].includes(type)) {
+                finalAmount = -Math.abs(finalAmount);
+            }
+            const details = ['UDHAR DIYE', 'Credit Return'].includes(type) ? customerName.value.trim() : type;
+            
+            addEntry(type, finalAmount, details);
+            
+            saleAmount.value = '';
+            customerName.value = '';
+            if (!['UDHAR DIYE', 'Credit Return'].includes(type)) {
+                customerWrapper.classList.add('hidden');
+            }
+            saleAmount.focus();
+            showToast('Entry added!');
+        });
+
+        expenseForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (!expenseForm.checkValidity()) { return; }
+            let amount = +expenseAmount.value;
+            let desc = expenseDesc.value.trim();
+            if (!desc) { showToast('Description required.'); return; }
+            
+            addEntry('Expense', -Math.abs(amount), desc);
+
+            expenseForm.reset();
+            expenseAmount.focus();
+            showToast('Expense added!');
+        });
+
+        expenseDesc.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                expenseForm.requestSubmit();
+            }
+        });
+
+        creditPaymentAmount.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                creditPaymentCustomer.focus();
+            }
+        });
+
+        creditPaymentForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (!creditPaymentForm.checkValidity()) { return; }
+            let amount = +creditPaymentAmount.value;
+            let cust = creditPaymentCustomer.value.trim();
+            if (!cust) { showToast('Customer required.'); return; }
+            let pmethod = [...creditPaymentForm.querySelectorAll('input[type=radio][name=payment-method)')].find(el => el.checked)?.value || 'Cash';
+            
+            const details = `From: ${cust} (${pmethod})`;
+            addEntry('UDHARI PAID', Math.abs(amount), details);
+
+            creditPaymentForm.reset();
+            showToast('Udhari payment recorded!');
+        });
+
+        addStaffBtn.onclick = () => addStaffModal.classList.remove('hidden');
+        addStaffForm.onsubmit = function(e) {
+            e.preventDefault();
+            let name = newStaffNameInput.value.trim();
+            if (!name) { showToast("Enter staff name."); return; }
+            if (state.staff.some(s => s.name.toLowerCase() === name.toLowerCase())) { showToast("Staff exists!"); return; }
+            state.staff.push({ id: Date.now(), name: name, absences: [], payments: [] });
+            saveState();
+            renderAll();
+            addStaffModal.classList.add('hidden');
+            this.reset();
+            showToast("Staff added");
+        }
+        addStaffCancelBtn.onclick = () => {
+            addStaffModal.classList.add('hidden');
+            addStaffForm.reset();
+        };
+        staffSelect.onchange = () => updateAttendanceButtonState();
+
+        markAttendanceBtn.addEventListener('click', () => {
+            const staffId = parseInt(staffSelect.value, 10);
+            if (isNaN(staffId)) { showToast('Select staff'); return; }
+            const s = state.staff.find(ss => ss.id === staffId);
+            if (!s) return;
+            const idx = s.absences.indexOf(state.selectedDate);
+            if (idx === -1) {
+                s.absences.push(state.selectedDate);
+                showToast("Marked Absent");
+            } else {
+                s.absences.splice(idx, 1);
+                showToast("Marked Present");
+            }
+            saveState();
+            renderAll();
+        });
+        
+        paymentAmountInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                paymentDescInput.focus();
+            }
+        });
+
+        makePaymentBtn.addEventListener('click', () => {
+            const staffId = parseInt(staffSelect.value, 10);
+            if (isNaN(staffId)) { showToast('Please select a staff member.'); return; }
+            const amount = parseFloat(paymentAmountInput.value);
+            if (isNaN(amount) || amount <= 0) { showToast('Please enter a valid payment amount.'); return; }
+            const staffIndex = state.staff.findIndex(s => s.id === staffId);
+            if (staffIndex === -1) { showToast('Error: Could not find selected staff member.'); return; }
+            
+            const description = paymentDescInput.value.trim();
+            const staffMemberName = state.staff[staffIndex].name;
+
+            state.staff[staffIndex].payments.push({
+                date: state.selectedDate,
+                amount: amount,
+                description: description
+            });
+
+            const details = `Salary: ${staffMemberName} ${description ? '- ' + description : ''}`;
+            addEntry('Expense', -Math.abs(amount), details);
+
+            paymentAmountInput.value = '';
+            paymentDescInput.value = '';
+            showToast(`Payment of ${amount.toFixed(2)} to ${staffMemberName} recorded.`);
+        });
+
+        staffReportBody.onclick = function(e) {
+            const btn = e.target.closest('button'), tr = btn?.closest('tr'), id = parseInt(tr?.dataset.id);
+            if (!btn || !id) return;
+            if (btn.dataset.action === "delete-staff") {
+                showConfirmationModal('Delete this staff? All attendance/payments will be lost.', () => {
+                    state.staff = state.staff.filter(s => s.id !== id);
+                    saveState(); renderAll();
+                });
+            }
+            if (btn.dataset.action == "edit-staff") {
+                let s = state.staff.find(ss => ss.id == id);
+                if (!s) return;
+                staffEditId.value = id; staffEditName.value = s.name;
+                staffEditModal.classList.remove('hidden');
+            }
+        };
+        
+        staffEditForm.onsubmit = function(ev) {
+            ev.preventDefault();
+            let id = parseInt(staffEditId.value);
+            let n = staffEditName.value.trim();
+            let ss = state.staff.find(x => x.id == id);
+            if (ss && n) ss.name = n;
+            saveState(); renderAll(); staffEditModal.classList.add('hidden');
+        }
+        staffEditCancelBtn.onclick = () => staffEditModal.classList.add('hidden');
+
+        // --- MAIN APP MODAL HANDLING ---
+        function showConfirmationModal(msg, act) { 
+            modalMessage.innerText = msg; // Use innerText as message is plain text
+            actionToConfirm = act; 
+            confirmationModal.classList.remove('hidden'); 
+            
+            // Ensure the hardcoded Yes/Cancel buttons are visible
+            modalConfirmBtn.style.display = '';
+            modalConfirmBtn.textContent = 'Yes'; // Explicitly set text
+            modalConfirmBtn.className = 'px-4 py-2 bg-red-600 text-white rounded'; // Ensure correct styling
+
+            modalCancelBtn.style.display = '';
+            modalCancelBtn.textContent = 'Cancel'; // Explicitly set text
+            modalCancelBtn.className = 'px-4 py-2 bg-gray-300 rounded'; // Ensure correct styling
+        }
+        modalCancelBtn.onclick = () => confirmationModal.classList.add('hidden');
+        modalConfirmBtn.onclick = function() { if (actionToConfirm) actionToConfirm(); confirmationModal.classList.add('hidden'); };
+
+        document.getElementById('report-section').addEventListener('click', function(e) {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            
+            const tr = btn.closest('tr');
+            if (!tr) return;
+
+            const id = parseInt(tr.dataset.id);
+            if (!id) return;
+
+            if (btn.dataset.action === "delete") {
+                showConfirmationModal('Delete this entry?', () => {
+                    state.entries = state.entries.filter(en => en.id !== id);
+                    saveState(); renderAll();
+                });
+            }
+            if (btn.dataset.action === "edit") {
+                const entry = state.entries.find(en => en.id == id);
+                if (!entry) return;
+                editEntryId.value = id;
+                editSaleType.value = entry.type;
+                editAmount.value = Math.abs(entry.amount);
+                editDetails.value = entry.details;
+                editModal.classList.remove('hidden');
+            }
+        });
+        
+        editForm.onsubmit = function(ev) {
+            ev.preventDefault();
+            const id = parseInt(editEntryId.value);
+            const idx = state.entries.findIndex(e => e.id == id);
+            if (idx == -1) return;
+            let amt = +editAmount.value;
+            if (['Expense', 'Credit Return', 'Cash Return'].includes(state.entries[idx].type)) amt = -Math.abs(amt);
+            else amt = Math.abs(amt);
+            state.entries[idx].amount = amt;
+            state.entries[idx].details = editDetails.value.trim();
+            saveState(); renderAll();
+            editModal.classList.add('hidden');
+            showToast("Entry updated");
+        };
+        editModalCancelBtn.onclick = () => editModal.classList.add('hidden');
+
+        openingBalanceInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                openingBalanceInput.blur();
+            }
+        });
+        openingBalanceInput.onchange = () => { saveState(); renderAll(); }
+
+        staffReportType.onchange = function() {
+            let isDaily = staffReportType.value == "daily";
+            staffReportDate.classList.toggle('hidden', !isDaily);
+            staffReportMonth.classList.toggle('hidden', isDaily);
+            updateStaffReport();
+        };
+        staffReportDate.onchange = updateStaffReport;
+        staffReportMonth.onchange = updateStaffReport;
+
+        // --- CALCULATOR LOGIC ---
+        const denominations = [500, 200, 100, 50, 20, 10, 5, 2, 1];
+        function renderCalculator() {
+            calculatorContainer.innerHTML = '';
+            denominations.forEach(den => {
+                let group = document.createElement('div');
+                group.innerHTML = `<label class="block font-medium">${den} x</label><input type="number" min="0" class="calc-qty w-full border rounded p-1" data-denom="${den}">`;
+                calculatorContainer.appendChild(group);
+            });
+            calculatorContainer.querySelectorAll('input.calc-qty').forEach(input => {
+                input.oninput = () => updateCalcTotal();
+            });
+            updateCalcTotal();
+        }
+        function updateCalcTotal() {
+            let tot = 0;
+            calculatorContainer.querySelectorAll('input.calc-qty').forEach(input => {
+                let q = +input.value || 0, d = +input.dataset.denom;
+                tot += q * d;
+            });
+            calculatorTotalEl.textContent = tot.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+        }
+        
+        // === DATA EXPORT/IMPORT FUNCTIONS ===
+        function getReportData(filterType = 'all') {
+            let todaysEntries = state.entries.filter(e => e.date === state.selectedDate);
+
+            if (filterType === 'cash') {
+                todaysEntries = todaysEntries.filter(e => e.type === 'Cash' || (e.type === 'UDHARI PAID' && !e.details.includes('(Online)')) || e.type === 'Cash Return');
+            } else if (filterType === 'online') {
+                todaysEntries = todaysEntries.filter(e => e.type === 'Online' || (e.type === 'UDHARI PAID' && e.details.includes('(Online)')));
+            }
+
+            const openingBalance = parseFloat(openingBalanceInput.value) || 0;
+            
+            let cashflowTotal = 0;
+            let todaysCashTotal = 0;
+
+            todaysEntries.forEach(e => {
+                cashflowTotal += e.amount;
+                if (e.type === 'Cash' || (e.type === 'UDHARI PAID' && !e.details.includes('(Online)')) || e.type === 'Cash Return') {
+                    todaysCashTotal += e.amount;
+                }
+            });
+            const closingBalanceCashOnly = openingBalance + todaysCashTotal;
+            return { todaysEntries, openingBalance, cashflowTotal, closingBalance: closingBalanceCashOnly, todaysCashTotal };
+        }
+
+        exportPdfBtn.onclick = () => openPdfSummary('all');
+        exportCashPdfBtn.onclick = () => openPdfSummary('cash');
+        exportOnlinePdfBtn.onclick = () => openPdfSummary('online');
+
+
+        function openPdfSummary(filterType) {
+            const data = getReportData(filterType);
+            let summaryTitle = 'Full Report Summary';
+            if(filterType === 'cash') summaryTitle = 'Cash Report Summary';
+            if(filterType === 'online') summaryTitle = 'Online Report Summary';
+            
+            pdfSummaryTitle.textContent = summaryTitle;
+            
+            const cashTotal = data.todaysEntries.filter(e => e.type === 'Cash' || (e.type === 'UDHARI PAID' && !e.details.includes('(Online)'))).reduce((sum, e) => sum + e.amount, 0);
+            const onlineTotal = data.todaysEntries.filter(e => e.type === 'Online' || (e.type === 'UDHARI PAID' && e.details.includes('(Online)'))).reduce((sum, e) => sum + e.amount, 0);
+            const expenseTotal = data.todaysEntries.filter(e => e.type === 'Expense').reduce((sum, e) => sum + e.amount, 0);
+
+            let content = ``;
+            if (filterType === 'all' || filterType === 'cash') {
+                content += `<div class="flex justify-between border-b pb-1"><span>Opening Balance:</span> <strong>${data.openingBalance.toFixed(2)}</strong></div>
+                                <div class="flex justify-between border-b pb-1"><span>Cash Sales & Udhari:</span> <strong class="text-green-600">+ ${cashTotal.toFixed(2)}</strong></div>`;
+            }
+             if (filterType === 'all' || filterType === 'online') {
+                content += `<div class="flex justify-between border-b pb-1"><span>Online Sales & Udhari:</span> <strong class="text-blue-600">+ ${onlineTotal.toFixed(2)}</strong></div>`;
+            }
+            if (filterType === 'all') {
+                 content += `<div class="flex justify-between border-b pb-1"><span>Total Expenses:</span> <strong class="text-red-600">${expenseTotal.toFixed(2)}</strong></div>
+                                <hr class="my-2"/>
+                                <div class="flex justify-between text-lg font-bold pt-1"><span>Closing Balance (Cash in Hand):</span> <strong>${data.closingBalance.toFixed(2)}</strong></div>`;
+            }
+
+            pdfSummaryContent.innerHTML = content;
+            currentPdfGenerator = () => generatePdf(filterType);
+            pdfSummaryModal.classList.remove('hidden');
+        }
+        
+        pdfSummaryCancelBtn.onclick = () => pdfSummaryModal.classList.add('hidden');
+        pdfSummaryDownloadBtn.onclick = () => { 
+            if(currentPdfGenerator) currentPdfGenerator();
+            pdfSummaryModal.classList.add('hidden'); 
+        };
+
+        function drawDateWidgetPdf(doc, dateStr) {
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const widgetWidth = 35;
+            const margin = 14;
+            const x = pageWidth - widgetWidth - margin;
+            const y = 12;
+            const selectedDate = new Date(dateStr + 'T00:00:00');
+            const day = selectedDate.toLocaleDateString('en-US', { weekday: 'long' });
+            const date = selectedDate.getDate().toString();
+            const month = selectedDate.toLocaleDateString('en-US', { month: 'long' });
+
+            doc.setFillColor(239, 68, 68);
+            doc.roundedRect(x, y, widgetWidth, 8, 2, 2, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(10);
+            doc.setTextColor(255, 255, 255);
+            doc.text(day, x + widgetWidth / 2, y + 5.5, { align: 'center' });
+            doc.setDrawColor(209, 213, 219);
+            doc.roundedRect(x, y, widgetWidth, 25, 2, 2, 'S');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(22);
+            doc.setTextColor(0, 0, 0);
+            doc.text(date, x + widgetWidth / 2, y + 17, { align: 'center' });
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(9);
+            doc.text(month, x + widgetWidth / 2, y + 22, { align: 'center' });
+        }
+
+        function generatePdf(filterType = 'all') {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            const data = getReportData(filterType);
+            const selectedDateForTitle = new Date(state.selectedDate + 'T00:00:00').toLocaleDateString('en-GB');
+            
+            let reportTitle = `Financial Report for ${selectedDateForTitle}`;
+            if(filterType === 'cash') reportTitle = `Cash Only Report for ${selectedDateForTitle}`;
+            if(filterType === 'online') reportTitle = `Online Only Report for ${selectedDateForTitle}`;
+
+            const addHeaderAndFooter = (docInstance) => {
+                docInstance.setFont('helvetica', 'bold');
+                docInstance.setFontSize(20);
+                docInstance.text("MASTER OF BRANDS", 105, 15, { align: 'center' });
+                docInstance.setFont('helvetica', 'normal');
+                docInstance.setFontSize(12);
+                docInstance.text(reportTitle, 105, 22, { align: 'center' });
+                drawDateWidgetPdf(docInstance, state.selectedDate);
+            };
+            
+            addHeaderAndFooter(doc);
+            
+            const body = data.todaysEntries.map(e => [e.time, e.type, e.details, e.amount.toFixed(2)]);
+            const total = data.todaysEntries.reduce((sum, e) => sum + e.amount, 0);
+            const footer = [[{ content: 'Total', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } }, { content: total.toFixed(2), styles: { halign: 'right', fontStyle: 'bold' } }]];
+
+            doc.autoTable({
+                startY: 45,
+                head: [['Time', 'Type', 'Details', 'Amount']],
+                body: body,
+                foot: footer,
+                theme: 'grid',
+                headStyles: { fillColor: [75, 85, 99] },
+                footStyles: { fillColor: [224, 224, 224] },
+                didParseCell: (data) => {
+                    if (data.column.dataKey === 3 || (data.section === 'foot' && data.column.index === 1)) {
+                        const value = parseFloat(data.cell.raw);
+                        if (value < 0) data.cell.styles.textColor = [255, 0, 0];
+                    }
+                },
+                didDrawPage: (data) => addHeaderAndFooter(doc),
+                margin: { top: 40 }
+            });
+
+            doc.save(`Report-MOB-${filterType}-${state.selectedDate}.pdf`);
+            showToast(`${filterType.charAt(0).toUpperCase() + filterType.slice(1)} PDF Exported!`);
+        };
+
+        exportExcelBtn.onclick = function() {
+            const data = getReportData();
+            const entriesToday = data.todaysEntries.map((e, i) => ({
+                '#': i + 1, 'Time': e.time, 'Type': e.type, 'Details': e.details, 'Amount': e.amount
+            }));
+            const summary = [
+                { Item: 'Opening Balance', Value: data.openingBalance },
+                { Item: 'Today\'s Cashflow Total', Value: data.cashflowTotal },
+                { Item: 'Today\'s Cash', Value: data.todaysCashTotal },
+                { Item: 'Closing Balance (Cash in Hand)', Value: data.closingBalance }
+            ];
+            const ws1 = XLSX.utils.json_to_sheet(entriesToday);
+            const ws2 = XLSX.utils.json_to_sheet(summary);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws1, "Transactions");
+            XLSX.utils.book_append_sheet(wb, ws2, "Summary");
+            XLSX.writeFile(wb, `Report-MOB-${state.selectedDate}.xlsx`);
+            showToast("Excel Exported!");
+        };
+
+        importPdfBtn.onclick = () => importPdfInput.click();
+        importJsonBtn.onclick = () => importJsonInput.click();
+
+        importJsonInput.onchange = function(e) { 
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    const importedData = JSON.parse(event.target.result);
+                    if (importedData && Array.isArray(importedData.entries) && Array.isArray(importedData.staff)) {
+                        showConfirmationModal('This will overwrite all current data. Are you sure you want to restore from this backup?', () => {
+                            state.entries = importedData.entries;
+                            state.staff = importedData.staff;
+                            state.openingBalance = importedData.openingBalance || 0;
+                            state.selectedDate = importedData.selectedDate || new Date().toISOString().slice(0, 10);
+                            
+                            // Restore inventory data if present
+                            if (importedData.inventory) {
+                                state.inventory = importedData.inventory;
+                                // Migrate old DD/MM/YYYY dates to YYYY-MM-DD on import
+                                state.inventory.billData.forEach(item => {
+                                    if (item.billdate && item.billdate.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+                                        item.billdate = convertToYYYYMMDD(item.billdate);
+                                    }
+                                });
+                                localStorage.setItem('garmentBillData', JSON.stringify(state.inventory.billData));
+                            }
+
+                            // Restore creditors data if present
+                            if (importedData.creditors) {
+                                state.creditors = importedData.creditors;
+                                localStorage.setItem('creditors_data', JSON.stringify(state.creditors));
+                            }
+
+                            openingBalanceInput.value = state.openingBalance;
+                            reportDateInput.value = state.selectedDate;
+                            saveState();
+                            renderAll();
+                            showToast('Backup restored successfully!');
+                        });
+                    } else {
+                        showToast('Invalid backup file format.');
+                    }
+                } catch (err) {
+                    showToast('Error reading backup file.');
+                    console.error("JSON Parse Error:", err);
+                }
+            };
+            reader.readAsText(file);
+            importJsonInput.value = '';
+        };
+        exportJsonBtn.onclick = function () {
+            const dataStr = JSON.stringify(state, null, 2);
+            const dataBlob = new Blob([dataStr], {type: "application/json"});
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.download = `MOB-Backup-${new Date().toISOString().slice(0,10)}.json`;
+            link.href = url;
+            link.click();
+            URL.revokeObjectURL(url);
+            showToast('Backup exported!');
+        };
+        importPdfInput.onchange = async function(e) { 
+            const file = e.target.files[0];
+            if (!file) return;
+            showToast('Parsing PDF... Please wait.');
+            try {
+                const newEntries = await parseEntriesFromBrandReportPDF(file);
+                if (newEntries.length > 0) {
+                     showConfirmationModal(`Found ${newEntries.length} entries in the PDF. Do you want to add them to the current day's report? This cannot be undone.`, () => {
+                        state.entries.push(...newEntries);
+                        saveState();
+                        renderAll();
+                        showToast(`${newEntries.length} entries imported successfully!`);
+                    });
+                } else {
+                    showToast('No valid transaction entries found in the PDF.');
+                }
+            } catch (error) {
+                console.error("PDF Import Error:", error);
+                showToast(`Error parsing PDF: ${error.message}`);
+            } finally {
+                importPdfInput.value = '';
+            }
+        };
+        async function parseEntriesFromBrandReportPDF(file) { 
+            const loadingTask = pdfjsLib.getDocument(URL.createObjectURL(file));
+            const pdf = await loadingTask.promise;
+            const numPages = pdf.numPages;
+            let allEntries = [];
+            const now = new Date();
+            const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            for (let i = 1; i <= numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const text = textContent.items.map(item => item.str).join(' ');
+                const cashSaleRegex = /Cash Sales\s+([\d,]+\.\d{2})/g;
+                const onlineSaleRegex = /Online Sales\s+([\d,]+\.\d{2})/g;
+                const expenseRegex = /Expenses\s+([\w\s]+?)\s+([\d,]+\.\d{2})/g;
+                let match;
+                while ((match = cashSaleRegex.exec(text)) !== null) {
+                    allEntries.push({
+                        id: now.getTime() + allEntries.length,
+                        date: state.selectedDate, time, type: 'Cash',
+                        details: 'Imported from PDF',
+                        amount: parseFloat(match[1].replace(/,/g, ''))
+                    });
+                }
+                while ((match = onlineSaleRegex.exec(text)) !== null) {
+                    allEntries.push({
+                        id: now.getTime() + allEntries.length,
+                        date: state.selectedDate, time, type: 'Online',
+                        details: 'Imported from PDF',
+                        amount: parseFloat(match[1].replace(/,/g, ''))
+                    });
+                }
+                while ((match = expenseRegex.exec(text)) !== null) {
+                    allEntries.push({
+                        id: now.getTime() + allEntries.length,
+                        date: state.selectedDate, time, type: 'Expense',
+                        details: match[1].trim(),
+                        amount: -parseFloat(match[2].replace(/,/g, ''))
+                    });
+                }
+            }
+            return allEntries;
+        }
+
+        function handleArrowNavigation(e, elements) {
+            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+            e.preventDefault();
+            const currentIndex = elements.indexOf(document.activeElement);
+            let nextIndex;
+            if (e.key === 'ArrowRight') { nextIndex = (currentIndex + 1) % elements.length; }
+            else { nextIndex = (currentIndex - 1 + elements.length) % elements.length; }
+            elements[nextIndex].focus();
+        }
+
+        document.getElementById('tabs').addEventListener('keydown', (e) => {
+            const tabs = Array.from(document.querySelectorAll('#tabs button'));
+            handleArrowNavigation(e, tabs);
+        });
+        
+        saleTypeContainer.addEventListener('keydown', (e) => {
+            const saleTypes = Array.from(document.querySelectorAll('#sale-type-container button'));
+            handleArrowNavigation(e, saleTypes);
+        });
+
+        document.querySelectorAll('#tabs button').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('#tabs button').forEach(b => {
+                    b.classList.remove('tab-active', 'border-blue-600', 'text-blue-600', 'bg-blue-50');
+                    b.classList.add('border-transparent', 'text-gray-600');
+                });
+                tab.classList.add('tab-active');
+                tab.classList.remove('border-transparent', 'text-gray-600');
+                
+                document.querySelectorAll('#tab-content > div').forEach(p => p.classList.add('hidden'));
+                const panel = document.querySelector(`[data-panel="${tab.dataset.tab}"]`);
+                if (panel) {
+                    panel.classList.remove('hidden');
+                    const firstInput = panel.querySelector('input[type="number"], input[type="text"], select');
+                    if (firstInput) { setTimeout(() => firstInput.focus(), 0); }
+                }
+            });
+        });
+        
+        clearAllBtn.addEventListener('click', () => {
+            showConfirmationModal('This will delete all sales, expenses, and staff data permanently. Are you sure?', () => {
+                state.entries = [];
+                state.staff = [];
+                state.openingBalance = 0;
+                openingBalanceInput.value = 0;
+                saveState();
+                renderAll();
+                showToast('All data has been cleared.');
+            });
+        });
+
+        monthlyReportBtn.addEventListener('click', () => { showToast('Monthly report feature is coming soon!'); });
+
+        // --- INVENTORY APP LOGIC FROM REFERENCE CODE ---
+        let inventoryConfirmKeyListener = null; // Separate key listener for inventory modal
+
+        function showMessageBoxInventory(contentHTML, buttonsConfig, inputConfig = null) {
+            if (inventoryConfirmKeyListener) document.removeEventListener('keydown', inventoryConfirmKeyListener);
+            
+            // Clear previous content
+            invModalBody.innerHTML = contentHTML;
+            
+            // Handle input field if provided
+            let inputElement = null;
+            if (inputConfig) {
+                inputElement = document.createElement('input');
+                inputElement.type = inputConfig.type;
+                inputElement.id = inputConfig.id;
+                inputElement.placeholder = inputConfig.placeholder;
+                inputElement.className = 'w-full p-2 border rounded bg-gray-50 uppercase mb-4'; // Tailwind classes
+                invModalBody.appendChild(inputElement); // Append input directly to modal body
+            }
+
+            invModalFooter.innerHTML = buttonsConfig.map(btn => `<button class="${btn.class} font-semibold py-2 px-4 rounded transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" data-action="${btn.action}">${btn.text}</button>`).join('');
+            inventoryModal.classList.remove('hidden');
+
+            return new Promise(resolve => {
+                const actionButtons = Array.from(invModalFooter.querySelectorAll('button[data-action]'));
+                
+                if (inputElement) {
+                    setTimeout(() => inputElement.focus(), 50);
+                    inputElement.addEventListener('keydown', e => { 
+                        if (e.key === 'Enter') { 
+                            e.preventDefault(); 
+                            const confirmButton = invModalFooter.querySelector('[data-action="confirm"]') || invModalFooter.querySelector('[data-action="save"]');
+                            confirmButton?.click();
+                        }
+                    });
+                }
+                
+                if (actionButtons.length > 0) {
+                    let focusedButtonIndex = inputElement ? -1 : 0;
+                    if (!inputElement) {
+                         setTimeout(() => actionButtons[focusedButtonIndex].focus(), 50);
+                    }
+
+                    inventoryConfirmKeyListener = (e) => {
+                        if (e.key === 'ArrowRight') { 
+                            e.preventDefault(); 
+                            if (focusedButtonIndex === -1) focusedButtonIndex = 0;
+                            else focusedButtonIndex = (focusedButtonIndex + 1) % actionButtons.length; 
+                            actionButtons[focusedButtonIndex].focus(); 
+                        } else if (e.key === 'ArrowLeft') { 
+                            e.preventDefault(); 
+                            if (focusedButtonIndex === -1) focusedButtonIndex = 0;
+                            else focusedButtonIndex = (focusedButtonIndex - 1 + actionButtons.length) % actionButtons.length; 
+                            actionButtons[focusedButtonIndex].focus(); 
+                        } else if (e.key === 'Enter' && document.activeElement.tagName === 'BUTTON') { 
+                            e.preventDefault(); 
+                            document.activeElement.click();
+                        }
+                    };
+                    document.addEventListener('keydown', inventoryConfirmKeyListener);
+                }
+                
+                actionButtons.forEach(button => {
+                    button.onclick = () => {
+                        inventoryModal.classList.add('hidden');
+                        if (inventoryConfirmKeyListener) document.removeEventListener('keydown', inventoryConfirmKeyListener);
+                        inventoryConfirmKeyListener = null;
+                        resolve({ action: button.dataset.action, inputValue: inputElement ? inputElement.value : null });
+                    };
+                });
+            });
+        }
+        
+        function saveSizeMode(mode) {
+            currentSizeMode = mode;
+            localStorage.setItem("sizeEntryMode", mode);
+            toggleSizeModeUI();
+        }
+
+        function toggleSizeModeUI() {
+            document.getElementById("manualSizeInput").style.display = currentSizeMode === 'manual' ? 'grid' : 'none';
+            document.getElementById("checkboxSizeContainer").style.display = currentSizeMode.startsWith('checkbox') ? 'block' : 'none';
+            document.querySelectorAll('.size-mode-btn').forEach(btn => {
+                btn.classList.remove('bg-blue-600', 'text-white');
+                btn.classList.add('bg-gray-200', 'text-gray-900', 'hover:bg-gray-300');
+            });
+            const activeBtn = document.getElementById(`modeBtn-${currentSizeMode}`);
+            if (activeBtn) {
+                activeBtn.classList.add('bg-blue-600', 'text-white');
+                activeBtn.classList.remove('bg-gray-200');
+            }
+            const checkboxDiv = document.getElementById("checkboxSizeInput");
+            if (currentSizeMode === 'checkbox-jeans') checkboxDiv.innerHTML = generateSizeCheckboxesHTML('jeans');
+            else if (currentSizeMode === 'checkbox-shirts') checkboxDiv.innerHTML = generateSizeCheckboxesHTML('shirts');
+        }
+
+        function generateSizeCheckboxesHTML(type) {
+            const sizes = type === 'jeans' ? jeansSizes : shirtSizes;
+            let html = `<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-6 gap-y-4">`;
+            sizes.forEach(size => {
+                html += `
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <input type="checkbox" id="size${size}" value="${size}" class="size-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                            <label for="size${size}" class="ml-3 block text-sm font-medium text-gray-900 uppercase">${size}</label>
+                        </div>
+                        <div class="qty-controls flex items-center">
+                            <button type="button" class="qty-btn" onclick="adjustCheckboxQuantity('${size}', -1)" disabled>-</button>
+                            <input type="number" value="1" min="1" class="qty-display w-12 text-center bg-transparent" data-size="${size}" disabled>
+                            <button type="button" class="qty-btn" onclick="adjustCheckboxQuantity('${size}', 1)" disabled>+</button>
+                        </div>
+                    </div>`;
+            });
+            return html + `</div>`;
+        }
+
+        function undoActionInventory() {
+            if (state.inventory.undoStack.length === 0) return showMessageBoxInventory("<p>Nothing to undo.</p>", [{ text: 'OK', class: 'bg-blue-600 text-white', action: 'ok' }]);
+            state.inventory.redoStack.push(JSON.parse(JSON.stringify(state.inventory.billData)));
+            state.inventory.billData = state.inventory.undoStack.pop();
+            renderBillTable(); updateQuantitySummary(); saveState();
+        }
+
+        function redoActionInventory() {
+            if (state.inventory.redoStack.length === 0) return showMessageBoxInventory("<p>Nothing to redo.</p>", [{ text: 'OK', class: 'bg-blue-600 text-white', action: 'ok' }]);
+            state.inventory.undoStack.push(JSON.parse(JSON.stringify(state.inventory.billData)));
+            state.inventory.billData = state.inventory.redoStack.pop();
+            renderBillTable(); updateQuantitySummary(); saveState();
+        }
+
+        function saveDealer(name) {
+            let dealers = JSON.parse(localStorage.getItem("dealers") || "[]");
+            dealers = [name, ...dealers.filter(d => d.toUpperCase() !== name.toUpperCase())].slice(0, 10);
+            localStorage.setItem("dealers", JSON.stringify(dealers));
+            loadDealers();
+        }
+
+        function loadDealers() {
+            const list = document.getElementById("dealerList");
+            list.innerHTML = (JSON.parse(localStorage.getItem("dealers") || "[]")).map(d => `<option value="${d}"></option>`).join('');
+        }
+
+        function saveMargin() { localStorage.setItem("marginPercentage", document.getElementById("marginPercentage").value); }
+        function storeHSN(value) { localStorage.setItem("storedHSN", value.toUpperCase()); }
+
+        function suggestLastRate(itemName) {
+            const name = itemName.trim().toUpperCase();
+            if (!name) return;
+            const match = [...state.inventory.billData].reverse().find(d => d.item === name);
+            if (match) { document.getElementById('rate').value = match.rate; updateMRPPreview(); }
+        }
+
+        function autoSaveForm() {
+            const data = {
+                supplier: document.getElementById("supplier").value, billno: document.getElementById("billno").value,
+                billdate: convertToYYYYMMDD(document.getElementById("billdate").value), // Store as YYYY-MM-DD
+                itemname: document.getElementById("itemname").value,
+                rate: document.getElementById("rate").value, size: document.getElementById("size").value,
+                colour: document.getElementById("colour").value, colourCheckboxMode: document.getElementById("colourCheckboxMode").value,
+                hsn: document.getElementById("hsn").value, cgst: parseFloat(document.getElementById("cgst").value),
+                sgst: parseFloat(document.getElementById("sgst").value), marginPercentage: parseFloat(document.getElementById("marginPercentage").value),
+                roundTo: document.getElementById("roundTo").value,
+            };
+            localStorage.setItem("savedFormData", JSON.stringify(data));
+        }
+
+        function updateMRPPreview() {
+            const rate = parseFloat(document.getElementById("rate").value);
+            const margin = parseFloat(document.getElementById("marginPercentage").value);
+            const preview = document.getElementById("mrppreview");
+            if (!rate || !margin) { preview.value = ''; return; }
+            const rawMrp = rate * (1 + margin / 100);
+            const mrp = calculateRoundedMRP(rawMrp);
+            preview.value = `Raw: ₹${rawMrp.toFixed(2)} → MRP: ₹${mrp}`;
+        }
+
+        function calculateRoundedMRP(rawMrp) {
+            const roundBase = parseInt(document.getElementById("roundTo").value);
+            const hundredFloor = Math.floor(rawMrp / 100) * 100;
+            let candidates = [hundredFloor + roundBase];
+            if (roundBase === 49) candidates.push(hundredFloor + 99);
+            if (Math.abs(rawMrp - (hundredFloor + 100 + roundBase)) < Math.abs(rawMrp - candidates[candidates.length - 1])) {
+                candidates.push(hundredFloor + 100 + roundBase);
+                if (roundBase === 49) candidates.push(hundredFloor + 100 + 99);
+            }
+            return candidates.reduce((closest, current) => (Math.abs(current - rawMrp) < Math.abs(closest - rawMrp) ? current : closest), candidates[0]);
+        }
+
+        function expandSizes(input) {
+            const garmentSizes = ["S", "M", "L", "XL", "XXL", "3XL", "4XL", "5XL", "6XL"];
+            const results = [];
+            const tokens = input.toUpperCase().split(/\s+/).filter(t => t); 
+            for (let i = 0; i < tokens.length; i++) {
+                if (i + 1 < tokens.length && tokens[i + 1] === 'TO' && i + 2 < tokens.length) {
+                    const startToken = tokens[i]; const endToken = tokens[i + 2];
+                    const startIndex = garmentSizes.indexOf(startToken);
+                    const endIndex = garmentSizes.indexOf(endToken);
+                    if (startIndex !== -1 && endIndex !== -1 && startIndex <= endIndex) {
+                        for (let j = startIndex; j <= endIndex; j++) { results.push({ size: garmentSizes[j], qty: 1 }); }
+                    } else if (!isNaN(startToken) && !isNaN(endToken)) {
+                        for (let j = parseInt(startToken); j <= parseInt(endToken); j += 2) { results.push({ size: j.toString(), qty: 1 }); }
+                    } else {
+                        const match = startToken.match(/^([A-Z0-9]+)(\d*)$/);
+                        if (match) results.push({ size: match[1], qty: parseInt(match[2] || "1") });
+                        continue; 
+                    }
+                    i += 2; 
+                } else { 
+                    const match = tokens[i].match(/^([A-Z0-9]+)(\d*)$/);
+                    if (match) { results.push({ size: match[1], qty: parseInt(match[2] || "1") }); }
+                }
+            }
+            return results;
+        }
+
+        function adjustCheckboxQuantity(size, delta) {
+            const qtyDisplay = document.querySelector(`.qty-display[data-size="${size}"]`);
+            let currentQty = parseInt(qtyDisplay.value) || 1;
+            let newQty = currentQty + delta;
+            if (newQty < 1) newQty = 1;
+            qtyDisplay.value = newQty;
+        }
+
+        async function addSizes() {
+            const item = document.getElementById("itemname").value.trim().toUpperCase() || lastItem;
+            const rate = parseFloat(document.getElementById("rate").value) || lastRate;
+            if (!item || !rate) return; 
+            lastItem = item; lastRate = rate;
+            let sizes = []; let colour = "";
+            if (currentSizeMode === "manual") {
+                sizes = expandSizes(document.getElementById("size").value);
+                colour = document.getElementById("colour").value.trim().toUpperCase();
+            } else {
+                colour = document.getElementById("colourCheckboxMode").value.trim().toUpperCase();
+                document.querySelectorAll('#checkboxSizeInput .size-checkbox:checked').forEach(cb => {
+                    const qty = parseInt(document.querySelector(`.qty-display[data-size="${cb.value}"]`).value) || 1;
+                    sizes.push({ size: cb.value, qty: qty });
+                });
+            }
+            if (sizes.length === 0 || (!colour && currentSizeMode !== 'checkbox-jeans')) {
+                showMessageBoxInventory("<p>Please enter all required fields (Size and Colour).</p>", [{ text: 'OK', class: 'bg-blue-600 text-white', action: 'ok' }]);
+                return;
+            }
+            const baseItemData = {
+                supplier: document.getElementById("supplier").value.trim().toUpperCase(), billno: document.getElementById("billno").value.trim().toUpperCase(),
+                billdate: convertToYYYYMMDD(document.getElementById("billdate").value), // Store as YYYY-MM-DD
+                item, rate,
+                hsn: localStorage.getItem("storedHSN") || '', cgst: parseFloat(document.getElementById("cgst").value), sgst: parseFloat(document.getElementById("sgst").value),
+            };
+            state.inventory.currentBatchSource = { ...baseItemData, sizes: JSON.parse(JSON.stringify(sizes)) };
+            const mrp = calculateRoundedMRP(rate * (1 + parseFloat(document.getElementById("marginPercentage").value) / 100));
+            const newItems = sizes.map(s => ({...baseItemData, mrp, sizeColourDisplay: `${s.size}${colour ? '     ' + colour : ''}`, qty: s.qty }));
+            const { newAdditions, newUpdates } = await processDuplicates(newItems);
+            state.inventory.itemsToConfirm.push(...newAdditions);
+            state.inventory.updatesToConfirm.push(...newUpdates);
+            previewAndConfirmAdd();
+        }
+
+        async function processDuplicates(items) {
+            const newAdditions = [];
+            const newUpdates = [];
+            for (const itemToAdd of items) {
+                const existingItemIndex = state.inventory.billData.findIndex(existing => existing.item === itemToAdd.item && existing.sizeColourDisplay === itemToAdd.sizeColourDisplay);
+                const stagingItemIndex = state.inventory.itemsToConfirm.findIndex(staging => staging.item === itemToAdd.item && staging.sizeColourDisplay === itemToAdd.sizeColourDisplay);
+                const updateItemIndex = state.inventory.updatesToConfirm.findIndex(upd => upd.item.item === itemToAdd.item && upd.item.sizeColourDisplay === itemToAdd.sizeColourDisplay);
+
+                if (existingItemIndex !== -1 || stagingItemIndex !== -1 || updateItemIndex !== -1) {
+                    const result = await showMessageBoxInventory(`<p>Item <strong>${itemToAdd.item} (${itemToAdd.sizeColourDisplay})</strong> already exists.</p><p>What would you like to do?</p>`,
+                        [{ text: `Add Qty (${itemToAdd.qty})`, class: 'bg-blue-600 text-white hover:bg-blue-700', action: 'add_quantity' }, { text: 'Add as New', class: 'bg-gray-500 text-white hover:bg-gray-600', action: 'add_new' }, { text: 'Cancel', class: 'bg-red-600 text-white hover:bg-red-700', action: 'cancel' }]);
+                    
+                    if (result.action === 'add_quantity') {
+                        newUpdates.push({ item: itemToAdd, qtyToAdd: itemToAdd.qty });
+                    } else if (result.action === 'add_new') { 
+                        newAdditions.push(itemToAdd); 
+                    }
+                } else {
+                    newAdditions.push(itemToAdd);
+                }
+            }
+            return { newAdditions, newUpdates };
+        }
+
+        function generatePopupSummaryHTML(items, updates) {
+            if ((!items || items.length === 0) && (!updates || updates.length === 0)) return '';
+            const summary = {}; let totalQty = 0, totalRateValue = 0, totalMrpValue = 0;
+            const combined = [...items];
+            updates.forEach(upd => combined.push({...upd.item, qty: upd.qtyToAdd}));
+            combined.forEach(item => {
+                const qty = Number(item.qty) || 0, rate = Number(item.rate) || 0, mrp = Number(item.mrp) || 0;
+                summary[item.item] = (summary[item.item] || 0) + qty;
+                totalQty += qty; totalRateValue += qty * rate; totalMrpValue += qty * mrp;
+            });
+            let html = `<div class="mt-4 pt-4 border-t border-gray-300"><h4 class="font-semibold text-center mb-2">Batch Summary</h4><ul class="text-sm space-y-1">`;
+            Object.keys(summary).sort().forEach(itemName => { html += `<li class="flex justify-between"><span>${itemName}:</span><strong>${summary[itemName]} pcs</strong></li>`; });
+            html += `<li class="flex justify-between font-bold border-t border-gray-300 mt-2 pt-2"><span>Total Quantity:</span><span>${totalQty} pcs</span></li><li class="flex justify-between font-bold"><span>Total Value:</span><span>₹${totalRateValue.toFixed(2)}</span></li><li class="flex justify-between font-bold"><span>Total MRP:</span><span>₹${totalMrpValue.toFixed(2)}</span></li></ul></div>`;
+            return html;
+        }
+
+        function updateStagedQuantitiesFromPopup() {
+            document.querySelectorAll('[data-update-index]').forEach(input => {
+                const index = parseInt(input.dataset.updateIndex);
+                if (state.inventory.updatesToConfirm[index]) state.inventory.updatesToConfirm[index].qtyToAdd = parseInt(input.value) || 1;
+            });
+            document.querySelectorAll('[data-staging-index]').forEach(input => {
+                const index = parseInt(input.dataset.stagingIndex);
+                if (state.inventory.itemsToConfirm[index]) state.inventory.itemsToConfirm[index].qty = parseInt(input.value) || 1;
+            });
+        }
+
+        function deleteStagedItem(type, index) {
+            updateStagedQuantitiesFromPopup(); 
+            if (type === 'update') state.inventory.updatesToConfirm.splice(index, 1);
+            if (type === 'item') state.inventory.itemsToConfirm.splice(index, 1);
+            previewAndConfirmAdd();
+        }
+
+        async function previewAndConfirmAdd() {
+            if (state.inventory.itemsToConfirm.length === 0 && state.inventory.updatesToConfirm.length === 0) return;
+            let updateHtml = '';
+            if (state.inventory.updatesToConfirm.length > 0) {
+                updateHtml = `<p class="mt-4 font-semibold">The following quantities will be updated:</p><ul>`;
+                state.inventory.updatesToConfirm.forEach((upd, index) => {
+                    updateHtml += `<li class="text-sm ml-4 list-disc flex justify-between items-center my-2">${upd.item.item} (${upd.item.sizeColourDisplay}) <div class="flex items-center"><div class="qty-controls flex items-center"><button type="button" class="qty-btn" onclick="adjustUpdateQty(${index}, -1)">-</button><input type="number" value="${upd.qtyToAdd}" min="1" class="qty-display w-12 text-center bg-transparent" data-update-index="${index}"><button type="button" class="qty-btn" onclick="adjustUpdateQty(${index}, 1)">+</button></div><button class="delete-staged-btn ml-2" onclick="deleteStagedItem('update', ${index})">🗑️</button></div></li>`;
+                });
+                updateHtml += `</ul>`;
+            }
+            let tableHtml = '';
+            if (state.inventory.itemsToConfirm.length > 0) {
+                tableHtml = `<p class="mt-4 font-semibold">The following new items will be added:</p><table class="confirmation-table"><thead><tr><th>Item</th><th>Size/Colour</th><th class="text-center">Qty</th><th class="text-center">Action</th></tr></thead><tbody>`;
+                state.inventory.itemsToConfirm.forEach((item, index) => { tableHtml += `<tr><td>${item.item}</td><td>${item.sizeColourDisplay}</td><td><div class="qty-controls flex items-center justify-center"><button type="button" class="qty-btn" onclick="adjustStagingQty(${index}, -1)">-</button><input type="number" value="${item.qty}" min="1" class="qty-display w-12 text-center bg-transparent" data-staging-index="${index}"><button type="button" class="qty-btn" onclick="adjustStagingQty(${index}, 1)">+</button></div></td><td class="text-center"><button class="delete-staged-btn" onclick="deleteStagedItem('item', ${index})">🗑️</button></td></tr>`; });
+                tableHtml += `</tbody></table>`;
+            }
+            const summaryHtml = generatePopupSummaryHTML(state.inventory.itemsToConfirm, state.inventory.updatesToConfirm);
+            const finalHtml = (updateHtml + tableHtml === '') ? "<p>No changes to confirm.</p>" : updateHtml + tableHtml + summaryHtml;
+            const result = await showMessageBoxInventory(finalHtml, [ { text: 'Confirm All', class: 'bg-green-600 text-white hover:bg-green-700', action: 'confirm_add' }, { text: 'Add Another Colour', class: 'bg-blue-600 text-white hover:bg-blue-700', action: 'add_another_color' }, { text: 'Cancel', class: 'bg-gray-500 text-white hover:bg-gray-600', action: 'cancel' }]);
+            
+            updateStagedQuantitiesFromPopup();
+            
+            if (result.action === 'confirm_add') {
+                state.inventory.undoStack.push(JSON.parse(JSON.stringify(state.inventory.billData)));
+                state.inventory.redoStack = [];
+                state.inventory.updatesToConfirm.forEach(upd => {
+                    const existingItemIndex = state.inventory.billData.findIndex(existing => existing.item === upd.item.item && existing.sizeColourDisplay === upd.item.sizeColourDisplay);
+                    if (existingItemIndex !== -1) state.inventory.billData[existingItemIndex].qty += upd.qtyToAdd;
+                });
+                state.inventory.billData.push(...state.inventory.itemsToConfirm);
+                state.inventory.itemsToConfirm = []; state.inventory.updatesToConfirm = []; state.inventory.currentBatchSource = null;
+                renderBillTable(); updateQuantitySummary(); saveState();
+                document.getElementById('itemname').value = lastItem; document.getElementById('rate').value = lastRate;
+                updateMRPPreview();
+                if (currentSizeMode.startsWith('checkbox')) {
+                    document.getElementById('colourCheckboxMode').value = '';
+                    document.querySelectorAll('#checkboxSizeInput .size-checkbox').forEach(cb => { cb.checked = false; });
+                    toggleSizeModeUI();
+                }
+                document.getElementById('size').value = ''; document.getElementById('colour').value = '';
+            } else if (result.action === 'add_another_color') {
+                const promptResult = await showMessageBoxInventory("<p>Enter new color for the current sizes:</p>", [{ text: 'Add', class: 'bg-green-600 text-white hover:bg-green-700', action: 'confirm' }, { text: 'Cancel', class: 'bg-gray-500 text-white hover:bg-gray-600', action: 'cancel' }], { type: 'text', id: 'newColourInput', placeholder: 'Enter new colour' });
+                if (promptResult.action === 'confirm' && promptResult.inputValue) {
+                    const newColour = promptResult.inputValue.trim().toUpperCase();
+                    const mrp = calculateRoundedMRP(state.inventory.currentBatchSource.rate * (1 + parseFloat(document.getElementById("marginPercentage").value) / 100));
+                    const { sizes, ...baseItemData } = state.inventory.currentBatchSource;
+                    const newItems = sizes.map(s => ({...baseItemData, mrp, sizeColourDisplay: `${s.size}       ${newColour}`, qty: s.qty}));
+                    const { newAdditions, newUpdates } = await processDuplicates(newItems);
+                    state.inventory.itemsToConfirm.push(...newAdditions);
+                    state.inventory.updatesToConfirm.push(...newUpdates);
+                    previewAndConfirmAdd();
+                } else { previewAndConfirmAdd(); }
+            } else { state.inventory.itemsToConfirm = []; state.inventory.updatesToConfirm = []; state.inventory.currentBatchSource = null; }
+        }
+
+        function adjustStagingQty(index, delta) { const input = document.querySelector(`[data-staging-index="${index}"]`); let qty = parseInt(input.value) + delta; if (qty < 1) qty = 1; input.value = qty; }
+        function adjustUpdateQty(index, delta) { const input = document.querySelector(`[data-update-index="${index}"]`); let qty = parseInt(input.value) + delta; if (qty < 1) qty = 1; input.value = qty; }
+
+        function deleteRow(rowIndex) {
+            showMessageBoxInventory("<p>Are you sure you want to delete this item?</p>", [{text: 'Yes, Delete', class: 'bg-red-600 text-white hover:bg-red-700', action: 'confirm'}, {text: 'No', class: 'bg-gray-500 text-white hover:bg-gray-600', action: 'cancel'}])
+            .then(result => { if(result.action === 'confirm') { state.inventory.undoStack.push(JSON.parse(JSON.stringify(state.inventory.billData))); state.inventory.redoStack = []; state.inventory.billData.splice(rowIndex, 1); renderBillTable(); updateQuantitySummary(); saveState(); }});
+        }
+
+        function clearAllInventory() {
+            showMessageBoxInventory("<p>Are you sure you want to clear all inventory entries?</p>", [{text: 'Yes, Clear All', class: 'bg-red-600 text-white hover:bg-red-700', action: 'confirm'}, {text: 'No', class: 'bg-gray-500 text-white hover:bg-gray-600', action: 'cancel'}])
+            .then(result => { if(result.action === 'confirm') { state.inventory.undoStack.push(JSON.parse(JSON.stringify(state.inventory.billData))); state.inventory.redoStack = []; state.inventory.billData = []; lastItem = ''; lastRate = ''; renderBillTable(); updateQuantitySummary(); saveState(); }});
+        }
+
+        function renderBillTable() {
+            const tbody = document.querySelector("#billTable tbody");
+            tbody.innerHTML = state.inventory.billData.map((d, i) => `
+                <tr class="bg-white border-b">
+                    <td class="px-4 py-2">${d.supplier}<br><span class="text-xs text-gray-500">${d.billno} - ${convertToDDMMYYYY(d.billdate)}</span></td>
+                    <td class="px-4 py-2">${d.item}</td>
+                    <td class="px-4 py-2">${d.sizeColourDisplay}</td>
+                    <td class="px-4 py-2 qty-input">${d.qty}</td>
+                    <td class="px-4 py-2">₹${d.rate}</td>
+                    <td class="px-4 py-2">₹${d.mrp}</td>
+                    <td class="px-4 py-2 text-center space-x-2">
+                        <button class="text-blue-500 hover:text-blue-700" onclick="editRowInventory(${i})">✏️</button>
+                        <button class="text-red-500 hover:text-red-700" onclick="deleteRow(${i})">🗑️</button>
+                    </td>
+                </tr>`).join('');
+        }
+
+        function updateQuantitySummary() {
+            const summary = {};
+            let grandTotalQty = 0;
+            let grandTotalValue = 0;
+            state.inventory.billData.forEach(d => { 
+                if (!summary[d.item]) summary[d.item] = { qty: 0, totalValue: 0 };
+                summary[d.item].qty += d.qty;
+                summary[d.item].totalValue += d.qty * d.rate;
+                grandTotalQty += d.qty;
+                grandTotalValue += d.qty * d.rate;
+            });
+            const summaryList = document.getElementById("summaryList");
+            summaryList.innerHTML = Object.keys(summary).sort().map(item => `<li class="flex justify-between items-center p-2 rounded bg-gray-100"><span>${item}</span><div class="text-right"><strong class="font-semibold">${summary[item].qty} pcs</strong><span class="text-xs text-gray-500 block">₹${summary[item].totalValue.toFixed(2)}</span></div></li>`).join('');
+            if(Object.keys(summary).length > 0) {
+                summaryList.innerHTML += `<li class="flex justify-between items-center p-2 rounded bg-gray-200 mt-2 font-bold"><span>Grand Total:</span><div class="text-right"><strong class="font-semibold">${grandTotalQty} pcs</strong><span class="text-xs block">₹${grandTotalValue.toFixed(2)}</span></div></li>`;
+            } else {
+                summaryList.innerHTML = `<li class="text-center text-gray-500">No items yet.</li>`;
+            }
+        }
+
+        function filterTable() {
+            const filter = document.getElementById('searchInput').value.toUpperCase();
+            document.querySelectorAll('#billTable tbody tr').forEach(row => { row.style.display = row.textContent.toUpperCase().includes(filter) ? '' : 'none'; });
+        }
+
+        async function handleFormInputKeydown(event, fieldId) {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            event.stopPropagation();
+
+            const order = currentSizeMode === 'manual'
+                ? ['itemname', 'rate', 'size', 'colour']
+                : ['itemname', 'rate', 'colourCheckboxMode'];
+
+            const currentIndex = order.indexOf(fieldId);
+
+            if (currentIndex > -1 && currentIndex < order.length - 1) {
+                document.getElementById(order[currentIndex + 1]).focus();
+            } else {
+                await addSizes();
+            }
+        }
+
+        async function editRowInventory(index) {
+            const item = state.inventory.billData[index];
+            const [size, colour] = item.sizeColourDisplay.split('     ');
+            const modalHtml = `<h3 class="text-lg font-bold mb-4">Edit Item</h3><div class="grid grid-cols-2 gap-4 text-sm"><div><label class="block font-medium">Supplier</label><input id="editSupplier" class="w-full p-2 border rounded mt-1 bg-gray-50 uppercase" value="${item.supplier}"></div><div><label class="block font-medium">Bill No</label><input id="editBillNo" class="w-full p-2 border rounded mt-1 bg-gray-50 uppercase" value="${item.billno}"></div><div><label class="block font-medium">Item Name</label><input id="editItem" class="w-full p-2 border rounded mt-1 bg-gray-50 uppercase" value="${item.item}"></div><div><label class="block font-medium">Rate</label><input id="editRate" type="number" class="w-full p-2 border rounded mt-1 bg-gray-50" value="${item.rate}"></div><div><label class="block font-medium">Size</label><input id="editSize" class="w-full p-2 border rounded mt-1 bg-gray-50 uppercase" value="${size.trim()}"></div><div><label class="block font-medium">Colour</label><input id="editColour" class="w-full p-2 border rounded mt-1 bg-gray-50 uppercase" value="${(colour || '').trim()}"></div><div><label class="block font-medium">Quantity</label><input id="editQty" type="number" class="w-full p-2 border rounded mt-1 bg-gray-50" value="${item.qty}"></div><div><label class="block font-medium">Bill Date</label><input id="editBillDate" type="text" class="w-full p-2 border rounded mt-1 bg-gray-50 uppercase" value="${convertToDDMMYYYY(item.billdate)}"></div></div>`;
+            const result = await showMessageBoxInventory(modalHtml, [{ text: 'Save Changes', class: 'bg-green-600 text-white hover:bg-green-700', action: 'save' }, { text: 'Cancel', class: 'bg-gray-500 text-white hover:bg-gray-600', action: 'cancel' }]);
+            if (result.action === 'save') {
+                state.inventory.undoStack.push(JSON.parse(JSON.stringify(state.inventory.billData)));
+                state.inventory.redoStack = [];
+                const newRate = parseFloat(document.getElementById('editRate').value);
+                const editedColour = document.getElementById('editColour').value.trim().toUpperCase();
+                state.inventory.billData[index] = { ...state.inventory.billData[index],
+                    supplier: document.getElementById('editSupplier').value.trim().toUpperCase(), billno: document.getElementById('editBillNo').value.trim().toUpperCase(),
+                    item: document.getElementById('editItem').value.trim().toUpperCase(), rate: newRate,
+                    sizeColourDisplay: `${document.getElementById('editSize').value.trim().toUpperCase()}${editedColour ? '     ' + editedColour : ''}`,
+                    qty: parseInt(document.getElementById('editQty').value), mrp: calculateRoundedMRP(newRate * (1 + parseFloat(document.getElementById("marginPercentage").value) / 100)),
+                    billdate: convertToYYYYMMDD(document.getElementById('editBillDate').value) // Store as YYYY-MM-DD
+                };
+                renderBillTable(); updateQuantitySummary(); saveState();
+            }
+        }
+
+        function downloadExcel() {
+            const data = state.inventory.billData.map(d => ({ Supplier: d.supplier, 'Bill No': d.billno, 'Bill Date': convertToDDMMYYYY(d.billdate), Item: d.item, 'Size / Colour': d.sizeColourDisplay, Qty: d.qty, Rate: d.rate, MRP: d.mrp, HSN: d.hsn, 'CGST (%)': d.cgst, 'SGST (%)': d.sgst }));
+            const ws = XLSX.utils.json_to_sheet(data); const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Bill"); XLSX.writeFile(wb, `bill-${document.getElementById('supplier').value || 'data'}.xlsx`);
+        }
+
+        function exportPDF() {
+            const { jsPDF } = window.jspdf; const doc = new jsPDF();
+            doc.autoTable({ head: [['Supplier', 'Bill No', 'Bill Date', 'Item', 'Size/Colour', 'Qty', 'Rate', 'MRP']], body: state.inventory.billData.map(d => [d.supplier, d.billno, convertToDDMMYYYY(d.billdate), d.item, d.sizeColourDisplay, d.qty, d.rate, d.mrp]), startY: 15, theme: 'grid', headStyles: { fillColor: [22, 160, 133] } });
+            doc.save(`bill-summary-${new Date().toISOString().slice(0,10)}.pdf`);
+        }
+
+        async function importExcel() {
+            const input = document.createElement('input'); input.type = 'file'; input.accept = '.xlsx, .xls';
+            input.onchange = e => {
+                const file = e.target.files[0]; const reader = new FileReader();
+                reader.onload = async event => {
+                    const data = new Uint8Array(event.target.result); const workbook = XLSX.read(data, {type: 'array'});
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]]; const json = XLSX.utils.sheet_to_json(sheet);
+                    const importedItems = json.map(row => ({ supplier: row.Supplier || '', billno: row['Bill No'] || '', billdate: convertToYYYYMMDD(row['Bill Date'] || ''), item: row.Item || '', sizeColourDisplay: row['Size / Colour'] || '', qty: row.Qty || 1, rate: row.Rate || 0, mrp: row.MRP || 0, hsn: row.HSN || '', cgst: row['CGST (%)'] || 0, sgst: row['SGST (%)'] || 0 })).filter(d => d.item && d.rate);
+                    if(importedItems.length > 0) {
+                        const { newAdditions, newUpdates } = await processDuplicates(importedItems);
+                        state.inventory.itemsToConfirm.push(...newAdditions);
+                        state.inventory.updatesToConfirm.push(...newUpdates);
+                        if (state.inventory.itemsToConfirm.length > 0 || state.inventory.updatesToConfirm.length > 0) previewAndConfirmAdd();
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            };
+            input.click();
+        }
+
+        // --- CREDITORS REPORT LOGIC ---
+        function renderCreditorsTable() {
+            creditorsTableBody.innerHTML = ''; // Clear existing rows
+
+            if (state.creditors.length === 0) {
+                creditorsTable.classList.add('hidden');
+                noCreditorsMessage.classList.remove('hidden');
+            } else {
+                creditorsTable.classList.remove('hidden');
+                noCreditorsMessage.classList.add('hidden');
+            }
+
+            let total = 0;
+            state.creditors.forEach((creditor, index) => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50 transition duration-150';
+
+                const nameCell = document.createElement('td');
+                nameCell.className = 'p-4';
+                nameCell.textContent = creditor.name;
+                row.appendChild(nameCell);
+
+                const amountCell = document.createElement('td');
+                amountCell.className = 'p-4 text-right';
+                amountCell.textContent = parseFloat(creditor.amount).toFixed(2);
+                row.appendChild(amountCell);
+                
+                const actionCell = document.createElement('td');
+                actionCell.className = 'p-4 text-center';
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = 'Delete';
+                deleteButton.className = 'delete-creditor-btn';
+                deleteButton.onclick = () => deleteCreditor(index);
+                actionCell.appendChild(deleteButton);
+                row.appendChild(actionCell);
+
+                creditorsTableBody.appendChild(row);
+                total += parseFloat(creditor.amount);
+            });
+
+            totalAmountCell.textContent = total.toFixed(2);
+        }
+        
+        function deleteCreditor(index) {
+            showConfirmationModal("Are you sure you want to delete this creditor?", () => {
+                state.creditors.splice(index, 1);
+                saveState();
+                renderCreditorsTable();
+            });
+        }
+
+        creditorForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = creditorNameInput.value.trim();
+            const amount = amountInput.value;
+
+            if (name && amount) {
+                state.creditors.push({ name, amount });
+                saveState();
+                renderCreditorsTable();
+                creditorForm.reset();
+                creditorNameInput.focus();
+            } else {
+                showToast("Please enter both creditor name and amount.");
+            }
+        });
+
+        generateCreditorPdfButton.addEventListener('click', () => {
+            if (state.creditors.length === 0) {
+                showToast("Please add at least one creditor before generating a PDF.");
+                return;
+            }
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            doc.setFontSize(18);
+            doc.text('Creditor Follow-up Report', 14, 22);
+            doc.setFontSize(11);
+            doc.setTextColor(100);
+            doc.text(`Generated on: ${new Date().toLocaleDateString('en-GB')}`, 14, 29);
+
+            const tableData = state.creditors.map(c => [
+                c.name,
+                `${parseFloat(c.amount).toFixed(2)}`, // Removed ₹ symbol here
+                '' // Empty remarks column
+            ]);
+            
+            const total = state.creditors.reduce((sum, c) => sum + parseFloat(c.amount), 0);
+            const totalRow = [
+                { content: 'Total Amount', styles: { fontStyle: 'bold', halign: 'left' } },
+                { content: `${total.toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right' } }, // Removed ₹ symbol here
+                { content: '', styles: { fontStyle: 'bold' } }
+            ];
+
+            doc.autoTable({
+                head: [['Creditor Name', 'Amount', 'Remarks']],
+                body: tableData,
+                startY: 35,
+                headStyles: { fillColor: [22, 160, 133] }, // Greenish color
+                foot: [totalRow],
+                footStyles: { fillColor: [230, 230, 230], textColor: 20 },
+                didDrawCell: (data) => {
+                    // Add lines for remarks for each row
+                     if (data.section === 'body' && data.column.index === 2) {
+                        doc.setDrawColor(200); // light grey
+                        const cellHeight = data.cell.height;
+                        const cellWidth = data.cell.width;
+                        const x = data.cell.x;
+                        const y = data.cell.y;
+                        // Draw a few lines inside the remarks cell for writing
+                        doc.line(x + 2, y + cellHeight / 2, x + cellWidth - 2, y + cellHeight / 2);
+                    }
+                }
+            });
+
+            doc.save('creditor-report.pdf');
+        });
+
+        // --- INITIALIZATION ---
+        (function() {
+            loadState();
+            staffReportDate.value = state.selectedDate; // YYYY-MM-DD
+            staffReportMonth.value = new Date().toISOString().slice(0, 7); // YYYY-MM
+            renderAll();
+            renderCalculator();
+            
+            // Inventory tab initialization
+            document.getElementById("billdate").value = convertToDDMMYYYY(new Date().toISOString().slice(0, 10)); // Initialize billdate to DD/MM/YYYY
+            document.getElementById('marginPercentage').value = localStorage.getItem("marginPercentage") || 60;
+            document.getElementById('hsn').value = localStorage.getItem("storedHSN") || '';
+            saveSizeMode(localStorage.getItem("sizeEntryMode") || "manual");
+            const saved = JSON.parse(localStorage.getItem("savedFormData") || "{}");
+            for (const key in saved) {
+                if (document.getElementById(key)) {
+                    if (key === 'billdate') {
+                        document.getElementById(key).value = convertToDDMMYYYY(saved[key]); // Convert saved YYYY-MM-DD to DD/MM/YYYY for display
+                    } else {
+                        document.getElementById(key).value = saved[key];
+                    }
+                }
+            }
+            document.addEventListener('change', function(event) {
+                if (event.target.classList.contains('size-checkbox')) {
+                    const checkbox = event.target;
+                    const controls = checkbox.closest('.flex.items.center.justify-between').querySelector('.qty-controls');
+                    if (controls) {
+                        const qtyDisplay = controls.querySelector('.qty-display');
+                        const buttons = controls.querySelectorAll('.qty-btn');
+                        const isChecked = checkbox.checked;
+                        qtyDisplay.disabled = !isChecked;
+                        buttons.forEach(btn => btn.disabled = !isChecked);
+                        if (!isChecked) { qtyDisplay.value = 1; }
+                    }
+                }
+            });
+            window.undoActionInventory = undoActionInventory;
+            window.redoActionInventory = redoActionInventory;
+            window.downloadExcel = downloadExcel;
+            window.exportPDF = exportPDF;
+            window.importExcel = importExcel;
+            window.clearAllInventory = clearAllInventory;
+            window.addSizes = addSizes;
+            window.suggestLastRate = suggestLastRate;
+            window.updateMRPPreview = updateMRPPreview;
+            window.saveDealer = saveDealer;
+            window.storeHSN = storeHSN;
+            window.autoSaveForm = autoSaveForm;
+            window.saveMargin = saveMargin;
+            window.saveSizeMode = saveSizeMode;
+            window.adjustCheckboxQuantity = adjustCheckboxQuantity;
+            window.handleFormInputKeydown = handleFormInputKeydown;
+            window.filterTable = filterTable;
+            window.editRowInventory = editRowInventory;
+            window.deleteRow = deleteRow;
+            window.adjustStagingQty = adjustStagingQty;
+            window.adjustUpdateQty = adjustUpdateQty;
+            window.deleteStagedItem = deleteStagedItem;
+
+            // Make creditors functions globally accessible for HTML events
+            window.deleteCreditor = deleteCreditor;
+        })();
+
+        window.addEventListener("beforeunload", function (e) {
+            if (state.inventory.billData.length > 0 || state.creditors.length > 0) { // Check both inventory and creditors
+                e.preventDefault();
+                e.returnValue = "You have unsaved data. Are you sure you want to leave?";
+            }
+        });
+    });
+    </script>
+</body>
+</html>
